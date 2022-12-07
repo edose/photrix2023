@@ -1,12 +1,11 @@
-__author__ = "Eric Dose, Albuquerque"
-
-""" This module: 
-      
+""" test_lc_an_roster.py
+    Pytest for lc_an_roster.py
 """
+
+__author__ = "Eric Dose, Albuquerque"
 
 # Python core:
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 
 # External packages:
@@ -18,7 +17,6 @@ from astropy.time import Time
 # Author's packages:
 from astropack.ini import Site
 from astropack.almanac import Astronight
-from astropack.util import Timespan
 
 # Test target:
 from photrix import lc_an_roster
@@ -133,7 +131,8 @@ def test_make_mpfile():
 
     # Case: verify previous MPfile of this number and year is not overwritten:
     with pytest.raises(lc_an_roster.MPfileAlreadyExistsError):
-        lc_an_roster.make_mpfile(111, '20230225', mpfile_directory=TEST_MPFILE_DIRECTORY)
+        lc_an_roster.make_mpfile(111, '20230225',
+                                 mpfile_directory=TEST_MPFILE_DIRECTORY)
 
     # Finally, remove this temporary test MPfile:
     filename = f'MP_{111}_{2023}.txt'
@@ -238,7 +237,7 @@ def test_make_df_an_table():
     an = make_astronight()
 
     # Case: normal.
-    df = lc_an_roster.make_df_an_table(an, min_moon_dist=42, min_hours_observable=2,
+    df = lc_an_roster.make_df_an_table(an, min_hours_observable=2,
                                        mpfile_directory=TEST_MPFILE_DIRECTORY)
     assert set(df.columns) == \
            set(['MPnumber', 'MPname', 'Motive', 'Priority', 'Period',
@@ -280,11 +279,11 @@ def test_make_df_an_table():
     assert df.loc['819', 'PhaseCoverage'].shape == (402, 3)
     assert df.loc['282', 'EphemerisOK'] == False
     assert df.loc['282', 'TooLate'] == True
-    assert all(df.loc[['819', '814', '784', '282'], 'TimeObservableOK'].values == \
+    assert all(df.loc[['819', '814', '784', '282'], 'TimeObservableOK'].values ==
                [True, True, True, False])
 
     # Case: one MP too close to the moon:
-    df = lc_an_roster.make_df_an_table(an, min_moon_dist=100, min_hours_observable=2,
+    df = lc_an_roster.make_df_an_table(an, min_hours_observable=2,
                                        mpfile_directory=TEST_MPFILE_DIRECTORY)
     assert all(df.loc[['819', '814', '784', '282'], 'TimeObservableOK'].values ==
            [False, True, True, False])
@@ -292,17 +291,12 @@ def test_make_df_an_table():
 
 def test__an_roster_header_string():
     an = make_astronight()
-    hs = lc_an_roster._an_roster_header_string(an)
+    _ = lc_an_roster._an_roster_header_string(an)
     # no tests here: verify by inspection. OK 2022-12-04
 
 
 def test_make_lc_an_roster():
-    an = make_astronight()
-    lc_an_roster.make_lc_an_roster('20221204')
+    # lc_an_roster.make_lc_an_roster('20221204')
+    lc_an_roster.make_lc_an_roster('20221206', mpfile_directory=TEST_MPFILE_DIRECTORY)
+    lc_an_roster.make_lc_an_roster('20221206')  # keep actual current MPfile directory.
     # no tests here: verify by inspection. OK 2022-12-04
-    iiii = 4
-
-
-
-
-

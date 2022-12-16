@@ -297,6 +297,8 @@ def test__an_roster_header_string():
 
 def test_make_lc_an_roster():
     # lc_an_roster.make_lc_an_roster('20221204')
-    lc_an_roster.make_lc_an_roster('20221206', mpfile_directory=TEST_MPFILE_DIRECTORY)
-    lc_an_roster.make_lc_an_roster('20221206')  # keep actual current MPfile directory.
+    # lc_an_roster.make_lc_an_roster('20221209', mpfile_directory=TEST_MPFILE_DIRECTORY)
+
+    # use actual current MPfile directory:
+    lc_an_roster.make_lc_an_roster('20221209', min_moon_dist=45)
     # no tests here: verify by inspection. OK 2022-12-04

@@ -148,7 +148,9 @@ def make_lc_an_roster(an_date: str | int,
     roster_header = [f'MP Roster for AN {an.an_date.an_str}  '
                      f'{day_of_week_string.upper()}'
                      f'    (site = {site.name})',
-                     f'{_an_roster_header_string(an)}  // photrix2023',
+                     f'{_an_roster_header_string(an)}',
+                     f'photrix2023   min_moon_dist={min_moon_dist}°   ' 
+                     f'MPfiles from {mpfile_directory}',
                      f'{"".join(100*["-"])}',
                      f'{"".ljust(16)}                       Exp Duty Mot.        ',
                      f'{"".ljust(16)}Start Tran  End   V    (s)  %  "/exp    P/hr']
@@ -348,6 +350,7 @@ def make_df_an_table(an: Astronight,
         an_dict['PhotrixPlanning'] = \
             f'IMAGE MP_{an_dict["MPnumber"]} ' \
             f'BB={round(float(an_dict["ExpTime"]))}s(*) ' \
+            f'@ '\
             f'{ra_as_hours(an_dict["RA"], seconds_decimal_places=1)} ' \
             f'{degrees_as_hex(an_dict["Dec"], arcseconds_decimal_places=0)}'
         an_dict['JD0'] = mpfile.obs_jd_ranges[0][0] if len(mpfile.obs_jd_ranges) >= 1 \
@@ -379,7 +382,7 @@ def make_df_an_table(an: Astronight,
 
 
 # noinspection DuplicatedCode
-def _make_coverage_plots(an, df_for_plots):
+def _make_coverage_plots(an, df_for_plots) -> None:
     """ Make Nobs-vs-UTC plots, one per MP, i.e.,
         plots of phase coverage by previous nights' observations.
     :param an: Astronight object [Astronight object].

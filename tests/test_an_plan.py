@@ -14,7 +14,7 @@ import pytest
 # import numpy as np
 from astropy.time import Time, TimeDelta
 import astropy.units as u
-from astropy.coordinates import SkyCoord, EarthLocation, Angle, AltAz
+from astropy.coordinates import SkyCoord, EarthLocation
 
 # Author's packages:
 from astropack.ini import Site
@@ -56,9 +56,23 @@ def test_make_plan_list():
     fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_big.xlsx')
     raw_string_list = photrix.an_plan.parse_excel(fullpath)
     site = make_new_site()
-    # TODO: write this when all directive classes have been tested.
-    # pl = photrix.an_plan.make_plan_list(raw_string_list, site)
-    # iiii = 4
+    plist = photrix.an_plan.make_plan_list(raw_string_list, site)
+    assert len(plist) == 5
+    assert [p.name for p in plist] == ['A', 'B', 'C', 'D', 'Z']
+    assert [len(p.action_directives) for p in plist] == [24, 3, 13, 2, 2]
+    assert [p.sets_object.sets_requested for p in plist] == [1, 100, 1, 1, 1]
+
+
+def test_write_acp_plan_files():
+    """ Test generation of ACP plan files from a plan list. """
+    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_big.xlsx')
+    raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    site = make_new_site()
+    plist = photrix.an_plan.make_plan_list(raw_string_list, site)
+    an_str = raw_string_list[0]
+    an = Astronight(site, an_str)
+    output_directory = os.path.join(DATA_FOR_TEST_DIRECTORY, 'test_output')
+    photrix.an_plan.write_acp_plan_files(output_directory, plist, an)
 
 
 _____TEST_SERVICE_CLASSES______________________________________________ = 0
@@ -79,7 +93,7 @@ def test_class_equipment_constructor():
     assert equip.scope_skycoord is None
     assert equip.dome == photrix.an_plan.DomeState.CLOSED
     assert equip.dome_azimuth_degrees == photrix.an_plan.DOME_HOME_AZIMUTH
-    assert equip.camera_temp_c == 20.0
+    assert equip.camera_temp_c == photrix.an_plan.CAMERA_AMBIENT_TEMP
     assert equip.current_filter is None  # "unknown"
     assert equip.guider_running == False
 
@@ -167,36 +181,56 @@ def test_equipment_park_scope():
     assert (time - start_time).sec == pytest.approx(9, abs=1)
 
 
-def test_equipment_slew_dome():
+def test_equipment_slew_dome_to_azimuth():
+    """ Test the main dome-slew function for bidirectional action and duration. """
     # Slew dome in positive-azimuth, from home position:
     site = make_new_site()
     equip = photrix.an_plan.Equipment(site)
     start_time = Time('2022-12-13 03:23:11')
     assert equip.dome_azimuth_degrees == photrix.an_plan.DOME_HOME_AZIMUTH
-    time = equip.slew_dome(100.0, start_time)
+    time = equip.slew_dome_to_azimuth(100.0, start_time)
     assert equip.dome_azimuth_degrees == pytest.approx(100.0)
     assert (time - start_time).sec == pytest.approx(37.3, abs=1)
 
     # Slew dome in negative-azimuth, across zero-azimuth:
     start_time = time
     assert equip.dome_azimuth_degrees == pytest.approx(100.0)
-    time = equip.slew_dome(333.0, start_time)
+    time = equip.slew_dome_to_azimuth(333.0, start_time)
     assert equip.dome_azimuth_degrees == pytest.approx(333.0)
     assert (time - start_time).sec == pytest.approx(47.3, abs=1)
 
     # Slew dome in negative-azimuth:
     start_time = time
     assert equip.dome_azimuth_degrees == pytest.approx(333.0)
-    time = equip.slew_dome(330.0, start_time)
+    time = equip.slew_dome_to_azimuth(330.0, start_time)
     assert equip.dome_azimuth_degrees == pytest.approx(330.0)
     assert (time - start_time).sec == pytest.approx(6, abs=1)
 
     # Slew dome in positive-azimuth, across zero-azimuth:
     start_time = time
     assert equip.dome_azimuth_degrees == pytest.approx(330.0)
-    time = equip.slew_dome(90.0, start_time)
+    time = equip.slew_dome_to_azimuth(90.0, start_time)
     assert equip.dome_azimuth_degrees == pytest.approx(90.0)
     assert (time - start_time).sec == pytest.approx(45, abs=1)
+
+
+def test_equipment_slew_dome_to_skycoord():
+    """ Test setup and then a call to slew_dome_to_azimuth. """
+    site = make_new_site()
+    equip = photrix.an_plan.Equipment(site)
+    skycoord = SkyCoord('01:29:02 +13:48:10', unit=(u.hourangle, u.deg))
+    assert equip.dome_azimuth_degrees == photrix.an_plan.DOME_HOME_AZIMUTH
+    start_time = Time('2022-12-13 03:23:11')
+    time = equip.slew_dome_to_skycoord(skycoord, start_time)
+    target_azimuth = 193.25
+    slew_degrees = min(abs(target_azimuth - photrix.an_plan.DOME_HOME_AZIMUTH),
+                       abs(photrix.an_plan.DOME_HOME_AZIMUTH - target_azimuth),
+                       abs(target_azimuth - (photrix.an_plan.DOME_HOME_AZIMUTH + 360)),
+                       abs((photrix.an_plan.DOME_HOME_AZIMUTH + 360) - target_azimuth))
+    assert (time - start_time).sec == \
+           pytest.approx(slew_degrees *
+                         photrix.an_plan.DOME_SLEW_DURATION_PER_DEGREE + 5.0, abs=1)
+    assert equip.dome_azimuth_degrees == pytest.approx(target_azimuth, abs=1)
 
 
 # noinspection DuplicatedCode
@@ -326,6 +360,7 @@ def test_class_afinterval():
     assert afi.performance_duration == \
            TimeDelta(photrix.an_plan.AUTOFOCUS_DURATION * u.s)
     assert afi.count_completed_this_plan == 0
+    # assert afi.summary_content_string() == f'AFINTERVAL {afi.parm_string}'
 
     # Initial performance within plan, so autofocus done:
     completed_now_1, exit_time_1 = afi.perform(start_time)
@@ -353,10 +388,12 @@ def test_class_sets():
     s = photrix.an_plan.Sets('100', 'the_comment')
     assert s.parm_string == '100'
     assert s.comment == 'the_comment'
+    assert s.explicitly_set == True
     assert s.sets_requested == 100
     assert s.sets_duration == TimeDelta(photrix.an_plan.SET_START_DURATION * u.s)
     assert s.n_completed == 0
     assert s.current_set_partially_completed is False
+    assert s.summary_content_string() == f'SETS {s.sets_requested}'
 
     # First set started but not finished:
     start_time = Time('2022-12-12 06:34:56')
@@ -383,6 +420,12 @@ def test_class_sets():
     assert s.n_completed == s.sets_requested
     assert s.current_set_partially_completed == False
 
+    # Case: default sets=1:
+    s = photrix.an_plan.Sets('1', 'the_comment', explicitly_set=False)
+    assert s.sets_requested == 1
+    assert s.comment == 'the_comment'
+    assert s.explicitly_set == False
+
 
 # noinspection DuplicatedCode
 def test_class_quitat():
@@ -393,6 +436,7 @@ def test_class_quitat():
     assert q.comment == 'quitat_comment'
     assert q.quitat_time == Time('2022-12-11 10:25')
     assert q.quitat_duration == TimeDelta(photrix.an_plan.QUITAT_DURATION * u.s)
+    assert q.summary_content_string() == f'QUITAT {q.parm_string.replace(":", "")}'
 
     # Before quitat time:
     assert q.quitat_time_is_reached(Time('2022-12-10 13:25'))[0] == False
@@ -415,6 +459,7 @@ def test_class_chain():
     assert c.an_date_string == '20221213'
     assert c.filename == 'plan_20221213_D2.txt'
     assert c.chain_duration == TimeDelta(photrix.an_plan.CHAIN_DURATION * u.s)
+    assert c.summary_content_string() == f'Chain to \'{c.filename}\''
 
     assert c.target_filename == 'plan_20221213_D2.txt'
     start_time = Time('2022-12-12 04:34:12')
@@ -435,6 +480,7 @@ def test_class_comment():
     assert c.perform(start_time) == (True, start_time)
     assert c.n_completed == 2
     assert c.n_partially_completed == 0
+    assert c.summary_content_string() == '; hahaha'
 
 
 # noinspection DuplicatedCode
@@ -450,15 +496,25 @@ def test_class_waituntil():
     assert wait.quitat_time is None
     assert wait.n_completed == 0
     assert wait.n_partially_completed == 0
+    assert wait.summary_content_string() == 'WAITUNTIL 05:23 utc'
+
+    # Case: parameter is sun altitude (in degrees):
+    wait = photrix.an_plan.Waituntil('-9', 'commentt9', an)
+    assert wait.parm_string == '-9'
+    assert abs(wait.waituntil_time - Time('2022-12-14 00:39:23')).sec < 1
+    # assert wait.summary_content_string() == \
+    #        f'WAITUNTIL sun -9\N{DEGREE SIGN} alt'
 
     # Case: quitat_time is not defined:
+    wait = photrix.an_plan.Waituntil('04:53', 'commentt', an)
     completed, exit_time = wait.perform(Time('2022-12-14 04:23:11'))
     assert completed == True
     assert exit_time.isclose(wait.waituntil_time)
     assert wait.n_completed == 1
     assert wait.n_partially_completed == 0
 
-    # Case: quitat_time is defined and earlier than waituntil time:
+    # Case: quitat_time is defined and earlier than waituntil time,
+    # NB: QUITAT is not checked until WAITUNTIL time has been reached.
     wait = photrix.an_plan.Waituntil('05:23', 'commentt', an)
     assert wait.n_completed == 0
     assert wait.n_partially_completed == 0
@@ -473,10 +529,12 @@ def test_class_waituntil():
 def test_class_imageseries():
     site = make_new_site()
     equip = photrix.an_plan.Equipment(site)
+    afinterval_obj = photrix.an_plan.Afinterval('120', 'Whoa, some comment this is.')
 
     # RA,Dec as hex with special characters:
     ims = photrix.an_plan.ImageSeries(
-        'MP_3166 BB=600s(9) @ 04h 07m 51.4164s  +20° 49\' 21.272" ', 'cmmnt', equip)
+        'MP_3166 BB=600s(9) @ 04h 07m 51.4164s  +20° 49\' 21.272" ', 'cmmnt', equip,
+        afinterval_obj)
     assert ims.parm_string == 'MP_3166 BB=600s(9) @ 04h 07m 51.4164s  +20° 49\' 21.272"'
     assert ims.comment == 'cmmnt'
     assert ims.quitat_time is None
@@ -486,21 +544,25 @@ def test_class_imageseries():
     assert ims.skycoord.separation(expected_radec).deg < 0.001
     assert ims.exposures == \
            [photrix.an_plan.Exposure(filter='BB', seconds=600, count=9)]
+    assert ims.afinterval_object.parm_string == '120'
     assert ims.count_completed_this_plan == 0
     assert ims.count_partially_completed_this_plan == 0
+    assert ims.summary_content_string() == f'Image {" ".join(ims.parm_string.split())}'
 
     # RA,Dec in standard hex format:
     ims = photrix.an_plan.ImageSeries(
-        'MP_3166 BB=600s(9) @ 04h 07m 51.4164s  -20:49:21.272 ', 'cmmnt', equip)
+        'MP_3166 BB=600s(9) @ 04h 07m 51.4164s  -20:49:21.272 ', 'cmmnt', equip,
+        afinterval_obj)
     assert ims.target_name == 'MP_3166'
     assert ims.exposure_strings == ['BB=600s(9)']
     expected_radec = SkyCoord('04:07:51.4164 -20:49:21.272', unit=(u.hourangle, u.deg))
     assert ims.skycoord.separation(expected_radec).deg < 0.001
+    assert ims.summary_content_string() == f'Image {" ".join(ims.parm_string.split())}'
 
     # Multiple exposure strings, with and without counts in parentheses:
     ims = photrix.an_plan.ImageSeries(
         'MP_3166 BB=600s(9) SR=340s Clear=120s(100) @ 04h 07m 51.4164s  -20:49:21.272',
-        'cmmnt', equip)
+        'cmmnt', equip, afinterval_obj)
     assert ims.target_name == 'MP_3166'
     assert ims.exposure_strings == ['BB=600s(9)', 'SR=340s', 'Clear=120s(100)']
     expected_radec = SkyCoord('04:07:51.4164 -20:49:21.272', unit=(u.hourangle, u.deg))
@@ -509,28 +571,34 @@ def test_class_imageseries():
            [photrix.an_plan.Exposure(filter='BB', seconds=600, count=9),
             photrix.an_plan.Exposure(filter='SR', seconds=340, count=1),
             photrix.an_plan.Exposure(filter='Clear', seconds=120, count=100)]
+    assert ims.summary_content_string() == f'Image {" ".join(ims.parm_string.split())}'
 
 
 def test_class_colorseries():
     site = make_new_site()
     equip = photrix.an_plan.Equipment(site)
+    afinterval_obj = photrix.an_plan.Afinterval('120', 'Whoa, some comment this is.')
 
     # RA,Dec as hex with special characters:
     cs = photrix.an_plan.ColorSeries(
-        'MP_3166 1.22x @ 04h 07m 51.4164s  +20° 49\' 21.272" ', 'cmt', equip)
+        'MP_3166 1.22x @ 04h 07m 51.4164s  +20° 49\' 21.272" ', 'cmt', equip,
+        afinterval_obj)
     assert cs.parm_string == 'MP_3166 1.22x @ 04h 07m 51.4164s  +20° 49\' 21.272"'
     assert cs.comment == 'cmt'
     assert cs.quitat_time is None
     assert cs.target_name == 'MP_3166'
     assert cs.exposure_factor == pytest.approx(1.22)
     assert len(cs.exposures) == 7
+    assert cs.afinterval_object.parm_string == '120'
     assert [exp.filter for exp in cs.exposures] == \
            ['SR', 'SG', 'SI', 'SR', 'SI', 'SG', 'SR']
     assert [exp.seconds for exp in cs.exposures] == \
-           pytest.approx([s * 1.22 for s in [90, 200, 180, 90, 180, 200, 90]])
+           pytest.approx([int(round(s * 1.22))
+                          for s in [90, 200, 180, 90, 180, 200, 90]])
     assert [exp.count for exp in cs.exposures] == 7 * [1]
     assert cs.count_completed_this_plan == 0
     assert cs.count_partially_completed_this_plan == 0
+    assert cs.summary_content_string() == f'Color {" ".join(cs.parm_string.split())}'
 
 
 def test_class_chill():
@@ -553,12 +621,14 @@ def test_class_chill():
                             ((photrix.an_plan.CAMERA_AMBIENT_TEMP - (-25)) / 50.0))
     assert (time - start_time).sec == pytest.approx(expected_duration)
     assert c.count_completed_this_plan == 1
+    assert c.summary_content_string() == f'CHILL {c.parm_string}°C'
 
     # Test without given tolerance:
     c = photrix.an_plan.Chill('-25, 1.1', 'ccc', equip)
     assert c.parm_string == '-25, 1.1'
     assert c.chill_c == -25
     assert c.tolerance_c == pytest.approx(1.1)
+    assert c.summary_content_string() == f'CHILL -25°C'
 
 
 def test_class_autofocus():
@@ -573,11 +643,14 @@ def test_class_autofocus():
     assert completed == True
     assert (time - start_time).sec == pytest.approx(af.autofocus_duration.sec, abs=0.01)
     assert af.count_completed_this_plan == 1
+    assert af.summary_content_string() == f'AUTOFOCUS'
 
 
 # noinspection DuplicatedCode
 def test_class_domeopen():
     site = make_new_site()
+
+    # Test constructor:
     equip = photrix.an_plan.Equipment(site)
     do = photrix.an_plan.Domeopen('commentt5', equip)
     assert do.comment == 'commentt5'
@@ -598,9 +671,10 @@ def test_class_domeopen():
     assert equip.dome == photrix.an_plan.DomeState.OPEN
     completed, time = do.perform(start_time)
     assert equip.dome == photrix.an_plan.DomeState.OPEN
-    assert completed == False
+    assert completed == True
     assert do.count_completed_this_plan == 1
     assert (time - start_time).sec == pytest.approx(1.0, abs=0.01)
+    assert do.summary_content_string() == f'DOMEOPEN'
 
 
 def test_class_domeclose():
@@ -615,22 +689,23 @@ def test_class_domeclose():
     assert equip.dome == photrix.an_plan.DomeState.CLOSED
     completed, time = close.perform(start_time)
     assert equip.dome == photrix.an_plan.DomeState.CLOSED
-    assert completed == False
+    assert completed == True
     assert close.count_completed_this_plan == 0
     assert (time - start_time).sec == pytest.approx(1.0, abs=0.01)
 
     # Dome begins OPEN (before DomeClose.perform()):
-    do = photrix.an_plan.Domeopen('commentt5', equip)
-    completed, time = do.perform(time)
+    dc = photrix.an_plan.Domeopen('commentt5', equip)
+    completed, time = dc.perform(time)
     assert completed is True
     start_time = time
     assert equip.dome == photrix.an_plan.DomeState.OPEN
     completed, time = close.perform(start_time)
     assert equip.dome == photrix.an_plan.DomeState.CLOSED
     assert completed == True
-    assert do.count_completed_this_plan == 1
+    assert close.count_completed_this_plan == 1
     assert (time - start_time).sec == \
            pytest.approx(photrix.an_plan.DOME_SHUTTER_DURATION, abs=0.01)
+    assert close.summary_content_string() == f'DOMECLOSE'
 
 
 def test_class_shutdown():
@@ -654,3 +729,145 @@ def test_class_shutdown():
     assert equip.scope_parked == True
     assert equip.camera_temp_c == photrix.an_plan.CAMERA_TEMP_ON_WARMING
     assert (exit_time - start_time).sec == pytest.approx(120.3, abs=1)
+    assert sd.summary_content_string() == f'SHUTDOWN'
+
+
+_____TEST_CLASS_PLAN___________________________________________________= 0
+
+
+def test_class_plan():
+    # Normal case:
+    p = photrix.an_plan.Plan('PP', 'comnt', '20221223')
+    assert p.name == 'PP'
+    assert p.comment == 'comnt'
+    assert p.an_date_str == '20221223'
+    assert p.long_name == '20221223_PP'
+    assert all([x is None for x in [p.afinterval_object, p.sets_object, p.quitat_object,
+                                    p.chain_object, p.plan_start_time,
+                                    p.plan_exit_time]])
+    assert p.action_directives == []
+    assert p.closed == False
+    af = photrix.an_plan.Autofocus('commentt')
+    p.append(af)
+    assert len(p.action_directives) == 1
+    assert isinstance(p.action_directives[0], photrix.an_plan.Autofocus)
+    # Error case: attempting to append to a closed plan:
+    p.close()
+    with pytest.raises(photrix.an_plan.ModifyClosedPlanError):
+        p.append(af)
+
+
+_____TEST_PLAN_SUMMARY_BUILDING________________________________________ = 0
+
+
+def test_simulate_plans(caplog):
+    site = make_new_site()
+    # equip = photrix.an_plan.Equipment(site)
+    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_big.xlsx')
+    raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+    an_str = raw_string_list[0]
+    an = Astronight(site, an_str)
+
+    # Run simulate_plans() with logging:
+    import logging
+    caplog_level = logging.DEBUG  # to ENABLE verbose logging in an_plan.py.
+    # caplog_level = logging.INFO  # to disable logging in an_plan.py.
+    with caplog.at_level(caplog_level):
+        plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+
+    # Print log file:
+    output_fullpath = 'C:/Dev/photrix2023/simulate_plans.log'
+    with open(output_fullpath, 'w') as f:
+        for line in caplog.records:
+            f.write(f'{line.message}\n')
+
+
+def test_make_warning_and_error_lines():
+    site = make_new_site()
+    # equip = photrix.an_plan.Equipment(site)
+    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_errors.xlsx')
+    raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+    an_str = raw_string_list[0]
+    an = Astronight(site, an_str)
+    plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+    # plan_list = [plan for (plan, _) in list(plan_dict.values())]
+    assert all([len(x['plan'].warning_error_lines) == 0
+                for x in list(plan_dict.values())])
+    plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
+
+    # Test PLAN warnings and errors:
+    assert len(plan_dict['A']['plan'].warning_error_lines) == 0
+    assert len(plan_dict['B']['plan'].warning_error_lines) == 2
+    assert 'waituntil gap' in \
+           plan_dict['B']['plan'].warning_error_lines[0].lower()
+    assert 'no afinterval or autofocus' in \
+           plan_dict['B']['plan'].warning_error_lines[1].lower()
+    assert len(plan_dict['C']['plan'].warning_error_lines) == 1
+    assert 'both afinterval and autofocus' in \
+           plan_dict['C']['plan'].warning_error_lines[0].lower()
+    assert len(plan_dict['D']['plan'].warning_error_lines) == 1
+    assert 'waituntil gap of 14 minutes' in \
+           plan_dict['D']['plan'].warning_error_lines[0].lower()
+    assert len(plan_dict['E']['plan'].warning_error_lines) == 2
+    assert 'no action directives' in \
+           plan_dict['E']['plan'].warning_error_lines[0].lower()
+    assert 'error: plan chains to itself' in \
+           plan_dict['E']['plan'].warning_error_lines[1].lower()
+    assert len(plan_dict['Z']['plan'].warning_error_lines) == 0
+
+    # Test individual DIRECTIVE warnings and errors:
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['A']['adsi_list']]) == 1
+    assert 'target too close to moon' in \
+           plan_dict['A']['adsi_list'][15].warning_error_lines[0].lower()
+    assert 'at 1°' in \
+           plan_dict['A']['adsi_list'][15].warning_error_lines[0].lower()
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['B']['adsi_list']]) == 0
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['C']['adsi_list']]) == 0
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['D']['adsi_list']]) == 0
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['E']['adsi_list']]) == 0
+    assert sum([len(adir.warning_error_lines)
+                for adir in plan_dict['Z']['adsi_list']]) == 0
+
+
+# noinspection DuplicatedCode
+def test_make_summary_lines():
+    """ From test Excel spreadsheet, write two summary files.
+        Test by inspection (nb: content generation has already passed other tests). """
+    site = make_new_site()
+
+    # Generate from a mostly valid Excel spreadsheet:
+    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_big.xlsx')
+    raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+    an_str = raw_string_list[0]
+    an = Astronight(site, an_str)
+    plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+    plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
+    summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
+    output_fullpath = 'C:/Dev/photrix2023/summary_big.txt'
+    with open(output_fullpath, 'w') as f:
+        for line in summary_lines:
+            f.write(f'{line}\n')
+
+    # Generate from an Excel spreadsheet with error and warning conditions:
+    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_errors.xlsx')
+    raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+    an_str = raw_string_list[0]
+    an = Astronight(site, an_str)
+    plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+    plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
+    summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
+    output_fullpath = 'C:/Dev/photrix2023/summary_errors.txt'
+    with open(output_fullpath, 'w') as f:
+        for line in summary_lines:
+            f.write(f'{line}\n')
+
+

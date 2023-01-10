@@ -1,5 +1,5 @@
 """ an_plan.py
-    Read excel file describing one Astronight's observations,
+    Read Excel file describing one Astronight's observations,
     produce ACP plan files ready to use in ACP, and the night's summary file as well.
 """
 
@@ -7,21 +7,23 @@ __author__ = "Eric Dose, Albuquerque"
 
 # Python core:
 import os
-from typing import List, Tuple
+from typing import List, Tuple, TypeAlias
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from collections import OrderedDict
+import logging
 
 # External packages:
 import pandas as pd
 import astropy.units as u
-from astropy.coordinates import SkyCoord, EarthLocation
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from astropy.time import Time, TimeDelta
 
 # Author's packages:
 from astropack.almanac import Astronight
 from astropack.ini import Site
-# from astropack.util import ra_as_hours, dec_as_hex
+from astropack.util import hhmm
 
 
 THIS_PACKAGE_ROOT_DIRECTORY = os.path.dirname(
@@ -62,6 +64,8 @@ WAITUNTIL_MAX_WAITING_TIME = 12 * 3600  # 12 hours.
 COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1), ('SG', 200, 1), ('SI', 180, 1),
                          ('SR', 90, 1), ('SI', 180, 1), ('SG', 200, 1),
                          ('SR', 90, 1))
+
+TimeCursor_type: TypeAlias = 'TimeCursor'
 
 
 class DomeState(Enum):
@@ -112,6 +116,7 @@ class Equipment:
         seconds = DOME_SHUTTER_DURATION if self.dome == DomeState.CLOSED else 1.0
         self.dome = DomeState.OPEN
         exit_time = time + TimeDelta(seconds * u.s)
+        logging.debug(f'{time}       Equipment.open_dome() // completed at {exit_time}.')
         return exit_time
 
     def close_dome(self, time: Time) -> Time:
@@ -120,6 +125,7 @@ class Equipment:
         seconds = DOME_SHUTTER_DURATION if self.dome == DomeState.OPEN else 1.0
         self.dome = DomeState.CLOSED
         exit_time = time + TimeDelta(seconds * u.s)
+        logging.debug(f'{time}       Equipment.close_dome() // completed at {exit_time}.')
         return exit_time
 
     def slew_scope(self, target_skycoord: SkyCoord, time: Time) -> Time:
@@ -133,6 +139,8 @@ class Equipment:
         self.scope_skycoord = target_skycoord
         self.scope_parked = False  # general case; .park_scope() will override.
         exit_time = time + slew_duration
+        logging.debug(f'{time}       Equipment.slew_scope() '
+                      f'// completed at {exit_time}.')
         return exit_time
 
     def park_scope(self, time: Time) -> Time:
@@ -154,10 +162,12 @@ class Equipment:
         exit_time = self.slew_scope(refined_target_skycoord, time)
         self.scope_skycoord = None  # is undefined when parked.
         self.scope_parked = True
+        logging.debug(f'{time}       Equipment.park_scope() // '
+                      f'completed at {exit_time}.')
         return exit_time
 
-    def slew_dome(self, target_azimuth: float, time: Time) -> Time:
-        """ Turn dome, return elapsed time."""
+    def slew_dome_to_azimuth(self, target_azimuth: float, time: Time) -> Time:
+        """ Turn dome to azimuth by shortest route, return elapsed time. """
         if target_azimuth >= self.dome_azimuth_degrees:
             degrees_to_slew = min(target_azimuth - self.dome_azimuth_degrees,
                                   self.dome_azimuth_degrees + 360 - target_azimuth)
@@ -168,45 +178,76 @@ class Equipment:
         dome_slew_duration = \
             TimeDelta((5.0 + DOME_SLEW_DURATION_PER_DEGREE * degrees_to_slew) * u.s)
         exit_time = time + dome_slew_duration
+        logging.debug(f'{time}       Equipment.slew_dome_to_azimuth'
+                      f'({target_azimuth:.3f} degrees az)... ')
+        return exit_time
+
+    def slew_dome_to_skycoord(self, target_skycoord: SkyCoord, time: Time) -> Time:
+        """ Turn dome to Skycoord, return elapsed time. """
+        target_azimuth_degrees = target_skycoord.transform_to(
+            AltAz(obstime=time, location=self.site_earth_loc)).az.degree
+        exit_time = self.slew_dome_to_azimuth(target_azimuth_degrees, time)
+        logging.debug(f'{time}       Equipment.slew_dome_to_skycoord '
+                      f'// completed at {exit_time}.')
         return exit_time
 
     def change_camera_temp(self, target_temp_c: float, tolerance_c: float, time: Time) \
             -> Time:
         """ Cool or warm camera, return exit time (of completion). """
-        from_target_c = target_temp_c - self.camera_temp_c
-        if abs(from_target_c) <= tolerance_c:
+        temp_change_requested_c = target_temp_c - self.camera_temp_c
+        if abs(temp_change_requested_c) <= tolerance_c:
             self.camera_temp_c = target_temp_c
             return time + TimeDelta(CAMERA_TEMP_MONITOR_DURATION * u.s)
-        estimated_seconds = abs(CAMERA_CHILL_DURATION * (from_target_c / 50.0))
+        estimated_seconds = abs(CAMERA_CHILL_DURATION *
+                                (temp_change_requested_c / 50.0))
         self.camera_temp_c = target_temp_c
         exit_time = time + TimeDelta(estimated_seconds * u.s)
+        logging.debug(f'{time}       Equipment.change_camera_temp'
+                      f'({target_temp_c - temp_change_requested_c}->'
+                      f'{target_temp_c}) // completed at {exit_time}.')
         return exit_time
 
     def use_filter(self, requested_filter: str, time: Time) -> Time:
         """ Change filter in camera. Simply use average filter-change duration. """
         if requested_filter == self.current_filter:
-            return time + TimeDelta(1.0 * u.s)
+            exit_time = time + TimeDelta(1.0 * u.s)
+            logging.debug(f'{time}       Equipment.use_filter({requested_filter}) '
+                          f'(no change) // completed at {exit_time}.')
+            return exit_time
         self.current_filter = requested_filter
         exit_time = time + TimeDelta(FILTER_CHANGE_DURATION * u.s)
+        logging.debug(f'{time}       Equipment.use_filter({requested_filter}) '
+                      f'FILTER CHANGE // completed at {exit_time}.')
         return exit_time
 
     def shutdown(self, time: Time) -> Time:
         """ Park scope and warm camera (assumes dome is already closed). """
         parked_time = self.park_scope(time)
         shutdown_time = self.change_camera_temp(CAMERA_TEMP_ON_WARMING, 1, parked_time)
+        logging.debug(f'{time}       Equipment.shutdown() '
+                      f'// completed at {shutdown_time}.')
         return shutdown_time
 
     def start_or_resume_guider(self, time: Time) -> Time:
         """ Start guider if not running, else resume guider. Return duration. """
         if self.guider_running:
-            return time + TimeDelta(GUIDER_RESUME_DURATION * u.s)
+            exit_time = time + TimeDelta(GUIDER_RESUME_DURATION * u.s)
+            logging.debug(f'{time}       Equipment.start_or_resume_guider() '
+                          f'RESUME // completed at {exit_time}.')
+            return exit_time
         self.guider_running = True
-        return time + TimeDelta(GUIDER_START_DURATION * u.s)
+        exit_time = time + TimeDelta(GUIDER_START_DURATION * u.s)
+        logging.debug(f'{time}       Equipment.start_or_resume_guider() '
+                      f'START GUIDER // completed at {exit_time}.')
+        return exit_time
 
     def stop_guider(self, time: Time) -> Time:
         """ Stop guider (if running). """
         self.guider_running = False
-        return time + TimeDelta(1.0 * u.s)
+        exit_time = time + TimeDelta(1.0 * u.s)
+        logging.debug(f'{time}       Equipment.stop_guider() // '
+                      f'completed at {exit_time}.')
+        return exit_time
 
     def _get_parked_skycoord(self, time: Time) -> SkyCoord:
         """ Return SkyCoord of scope's parked position at the given UTC time. """
@@ -214,6 +255,39 @@ class Equipment:
                         az=self.scope_parked_az*u.deg,
                         location=self.site_earth_loc,
                         obstime=time, frame='altaz')
+
+    def __str__(self):
+        return f'Equipment object: {self.site.name}'
+
+
+_____CLASS_TIMECURSOR__________________________________________________ = 0
+
+
+# Use this class TimeCursor if handing current time back and forth proves too fragile.
+class TimeCursor:
+    """ Represents current running time, and provides facilities for updating it. """
+    def __init__(self, initial_time: Time):
+        self._running_time = initial_time
+#
+#     @classmethod
+#     def from_astronight(cls, an: Astronight) -> TimeCursor_type:
+#         """ Given Astronight object, return TimeCursor object at starting time. """
+#         return cls(an.sun_antitransit_utc - TimeDelta(12 * u.hour))
+#
+#     def advance_by(self, increment: TimeDelta | float) -> None:
+#         """ Advance the time cursor by increment (in TimeDelta or float seconds). """
+#         timedelta = TimeDelta(increment * u.s) if isinstance(increment, float) \
+#             else increment
+#         self._running_time += timedelta
+#
+#     def advance_to(self, new_time: Time) -> None:
+#         """ Advance the time cursor to the given time. """
+#         self._running_time = new_time
+#
+#     @property
+#     def current(self) -> Time:
+#         """ Return current running time of this TimeCursor. """
+#         return self._running_time
 
 
 _____PLAN_DIRECTIVES___________________________________________________ = 0
@@ -226,6 +300,9 @@ class PlanDirective(ABC):
         abstract class ActionDirective. """
     """ The __init__() method parses the parameter string and stores data needed
         to operate this plan directive. """
+    # def summary_content_string(self) -> str:
+    #     """ Return content string to appear in directive's line within summary file. """
+    #     raise NotImplementedError
 
 
 class Afinterval(PlanDirective):
@@ -237,7 +314,8 @@ class Afinterval(PlanDirective):
     def __init__(self, parm_string: str, comment: str):
         self.parm_string = parm_string
         self.comment = comment
-        self.interval = TimeDelta(int(self.parm_string.split()[0]) * u.min)
+        self.minutes = int(round(float(self.parm_string.split()[0])))
+        self.interval = TimeDelta(self.minutes * u.min)
         self.time_last_performed = None
         self.performance_duration = TimeDelta(AUTOFOCUS_DURATION * u.s)
         self.count_completed_this_plan = 0
@@ -253,12 +331,21 @@ class Afinterval(PlanDirective):
         exit_time = start_time + self.performance_duration
         self.time_last_performed = exit_time
         self.count_completed_this_plan += 1
+        logging.debug(f'{start_time}       Afinterval.perform() '
+                      f'AUTOFOCUS DONE // completed at {exit_time}.')
         return True, exit_time  # here, autofocus was actually performed.
+
+    # def summary_content_string(self) -> str:
+    #     """ Required for summary file. """
+    #     return f'AFINTERVAL {self.minutes}'
 
     @property
     def n_completed(self) -> int:
         """ Returns number of .perform() calls actually completed. """
         return self.count_completed_this_plan
+
+    def __str__(self) -> str:
+        return f'Afinterval object: {self.minutes} minutes'
 
 
 class Sets(PlanDirective):
@@ -267,9 +354,10 @@ class Sets(PlanDirective):
         Cell Syntax: SETS max_sets_to_perform
         Example: SETS 100
         Where: anywhere within a Plan."""
-    def __init__(self, parm_string: str, comment: str):
+    def __init__(self, parm_string: str, comment: str, explicitly_set: bool = True):
         self.parm_string = parm_string
         self.comment = comment
+        self.explicitly_set = explicitly_set
         self.sets_requested = int(parm_string.split()[0])
         self.sets_duration = TimeDelta(SET_START_DURATION * u.s)
         self.count_started_this_plan = 0
@@ -301,6 +389,13 @@ class Sets(PlanDirective):
         return (self.count_completed_this_plan != self.count_started_this_plan) and\
                (self.count_started_this_plan != 0)
 
+    def summary_content_string(self) -> str:
+        """ Required for summary file. """
+        return f'SETS {self.sets_requested}'
+
+    def __str__(self) -> str:
+        return f'Sets object: {self.sets_requested} requested.'
+
 
 class Quitat(PlanDirective):
     """ Represents a QUITAT directive; sets and keeps plan value for #QUITAT.
@@ -321,6 +416,13 @@ class Quitat(PlanDirective):
         exit_time = time_now + self.quitat_duration
         return time_now >= self.quitat_time, exit_time
 
+    def summary_content_string(self) -> str:
+        """ Required for summary file. """
+        return f'QUITAT {hhmm(self.quitat_time)}'
+
+    def __str__(self) -> str:
+        return f'Quitat object: {self.parm_string.strip()}'
+
 
 class Chain(PlanDirective):
     """ Represents a CHAIN directive; sets and keeps plan value for #CHAIN.
@@ -329,7 +431,7 @@ class Chain(PlanDirective):
         Example: CHAIN D
         Where: anywhere within a Plan. """
     def __init__(self, parm_string: str, comment: str, an_date_string: str):
-        self.parm_string = parm_string
+        self.parm_string = parm_string.strip()
         self.comment = comment
         self.an_date_string = an_date_string
         self.filename = \
@@ -345,6 +447,12 @@ class Chain(PlanDirective):
         """ Only action is to advance time by chain duration. """
         return start_time + self.chain_duration
 
+    def summary_content_string(self) -> str:
+        """ Required for summary file. """
+        return f'Chain to \'{self.filename}\''
+
+    def __str__(self) -> str:
+        return f'Chain object: to {self.filename}'
 
 
 _____ACTION_DIRECTIVES_________________________________________________ = 0
@@ -369,7 +477,14 @@ class ActionDirective(ABC):
         """ The return value tuple comprises:
             * completed: int  # True iff .perform() fully completed.
             * exit_time: astropy Time:  time that .perform() exited."""
-        return False, Time.now()  # to be overwritten by all child classes.
+        completed = False
+        new_time = Time.now()
+        return completed, new_time  # to be overwritten by all child classes.
+
+    # @abstractmethod
+    # def summary_content_string(self) -> str:
+    #     """ Returns content string for the summary line of the child object. """
+    #     return ''
 
     @property
     @abstractmethod
@@ -387,6 +502,28 @@ class ActionDirective(ABC):
         pass
 
 
+@dataclass
+class ActionDirective_SummaryInfo:
+    """ One per action directive, with fields for summary line, too.
+        The purpose is to ease the updating of summary fields during simulation. """
+    adir: ActionDirective
+    status: str = ''
+    time: Time | None = None
+    min_alt: float | None = None
+    content: str | None = ''
+    warning_error_lines: List[str] = field(default_factory=lambda: [])
+
+    def make_summary_lines(self):
+        """ Return list of text lines to represent this action directive in the summary.
+            Comprises main line, then warning and error lines for this directive."""
+        summary_lines = []
+        summary_lines.append(
+            make_one_summary_line(self.status, self.time, self.min_alt, self.content))
+        for msg in self.warning_error_lines:
+            summary_lines.append(make_one_summary_line('', None, None, msg))
+        return summary_lines
+
+
 class Comment(ActionDirective):
     """ Represents a comment to be retained in plan's list of directives.
         Cell Syntax: ; comment_text_here [first cell character is colon]
@@ -402,6 +539,10 @@ class Comment(ActionDirective):
         exit_time = start_time
         return True, exit_time
 
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'; {self.comment_text}'
+
     @property
     def n_completed(self) -> int:
         """ Returns zero because never actually executed. """
@@ -411,6 +552,9 @@ class Comment(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because never actually executed. """
         return 0
+
+    def __str__(self) -> str:
+        return f'Comment object: \'{self.comment_text}\''
 
 
 class Waituntil(ActionDirective):
@@ -423,13 +567,15 @@ class Waituntil(ActionDirective):
     def __init__(self, parm_string: str, comment: str, an: Astronight):
         self.parm_string = parm_string
         self.comment = comment
-        parm = self.parm_string.strip()
-        if len(parm) == 5 and ':' in parm:
+        self.parm = self.parm_string.strip()
+        if len(self.parm) == 5 and ':' in self.parm:
             # Time is defined by a string like '05:25':
-            self.waituntil_time = an.time_from_hhmm(parm)
+            self.parm_type = 'UTC'
+            self.waituntil_time = an.time_from_hhmm(self.parm)
         else:
             # Time is defined by sun altitude:
-            required_sun_alt = float(parm)
+            self.parm_type = 'sun altitude'
+            required_sun_alt = float(self.parm)
             self.waituntil_time = an.times_at_sun_alt(sun_alt=required_sun_alt)[0]
         self.quitat_time = None  # may be explicitly set by .set_quitat_time(), later.
         self.count_completed_this_plan = 0
@@ -444,14 +590,24 @@ class Waituntil(ActionDirective):
             If SETS is specified > 1, this applies only to the first set. """
         # No-op if sun alt is specified but never reached:
         if self.waituntil_time is None:
-            return False, start_time
+            return False, start_time  # not completed.
         # Perform the wait:
         self.count_completed_this_plan += 1
-        exit_time = min(self.waituntil_time,
-                        start_time + TimeDelta(WAITUNTIL_MAX_WAITING_TIME * u.s))
+        # Length of wait is limited, but can NEVER be negative or longer than a valid
+        # QUITAT time:
+        best_exit_time = min(self.waituntil_time,
+                             start_time + TimeDelta(WAITUNTIL_MAX_WAITING_TIME * u.s))
         if self.quitat_time is not None:
-            exit_time = min(exit_time, self.quitat_time)
-        return True, exit_time
+            best_exit_time = min(best_exit_time, self.quitat_time)
+        best_exit_time = max(best_exit_time, start_time)
+        logging.debug(f'{start_time}       Waituntil // completed at {best_exit_time}.')
+        return True, best_exit_time  # fully completed.
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        if self.parm_type == 'UTC':
+            return f'WAITUNTIL {self.parm_string} utc'
+        return f'WAITUNTIL sun {self.parm_string}\N{DEGREE SIGN} alt'
 
     @property
     def n_completed(self) -> int:
@@ -463,6 +619,9 @@ class Waituntil(ActionDirective):
         """ Returns zero because it's assumed quitat always completes. """
         return 0
 
+    def __str__(self) -> str:
+        return f'Waituntil object: {self.parm_type} = {self.parm}'
+
 
 class ImageSeries(ActionDirective):
     """ Represents one Image directive (one target, one or more filters and/or
@@ -473,11 +632,13 @@ class ImageSeries(ActionDirective):
             May have any number of filter=exp_time(count) fields in the middle.
             If (count) is absent, one exposure is taken.
     """
-    def __init__(self, parm_string: str, comment: str, equip: Equipment):
+    def __init__(self, parm_string: str, comment: str, equip: Equipment,
+                 afinterval_object: Afinterval):
         self.parm_string = parm_string.strip()
         self.comment = comment.strip()
         self.quitat_time = None  # because possibly not known at time of construction.
         self.equip = equip              # Equipment object.
+        self.afinterval_object = afinterval_object
         self.target_name, self.exposure_strings, self.skycoord = \
             self.parse_parm_string(self.parm_string)
         self.exposures = self.parse_exposures(self.exposure_strings)
@@ -485,6 +646,7 @@ class ImageSeries(ActionDirective):
         self.imageseries_duration = None
         self.count_completed_this_plan = 0
         self.count_partially_completed_this_plan = 0
+        self.total_exposures_taken = 0
 
     def set_quitat_time(self, quitat_time: Time) -> None:
         """ Required, because when this object is constructed, QUITAT time may
@@ -498,7 +660,7 @@ class ImageSeries(ActionDirective):
         # Extract the radec_string & make target SkyCoord:
         splits = [s.strip() for s in parm_string.rsplit('@', maxsplit=1)]
         if len(splits) != 2:
-            raise ValueError(f'IMAGE {parm_string} cannot be parsed.')
+            raise ValueError(f'IMAGE {parm_string} cannot be parsed (missing @ ?).')
         skycoord = SkyCoord(splits[1], unit=(u.hourangle, u.deg))
 
         # Extract target name and exposure strings:
@@ -527,55 +689,89 @@ class ImageSeries(ActionDirective):
             exposures.append(Exposure(filter=filter_name, seconds=seconds, count=count))
         return exposures
 
+    # noinspection DuplicatedCode
     def perform(self, start_time: Time) -> Tuple[bool, Time]:
         """ Called at any time during a plan. Performs and accounts for time needed by
             slew, guider start and resumptions, filter changes, at-scope processing,
             and downloading. """
-        completed, exit_time = self.do_exposures(start_time,
-                                                 self.equip, self.skycoord,
-                                                 self.exposures, self.quitat_time)
-        if completed:
+        logging.debug(f'{start_time}       ImageSeries: Quitat={self.quitat_time}.')
+        n_exposures_completed, exit_time = \
+            self.do_exposures(start_time, self.equip, self.skycoord, self.exposures,
+                              self.quitat_time, self.afinterval_object)
+        n_exposures_requested = sum([exp.count for exp in self.exposures])
+        if n_exposures_completed == n_exposures_requested:
             self.count_completed_this_plan += 1
-        else:
+            logging.debug(f'{exit_time}       ImageSeries '
+                          f'// fully completed at {exit_time}.')
+        elif 0 < n_exposures_completed < n_exposures_requested:
             self.count_partially_completed_this_plan += 1
+            logging.debug(f'{exit_time}       ImageSeries '
+                          f'// partially completed at {exit_time}.')
+        else:
+            logging.debug(f'{exit_time}       ImageSeries '
+                          f'// no exposures taken at {exit_time}.')
+        self.total_exposures_taken += n_exposures_completed
+        completed = (n_exposures_completed == n_exposures_requested)
         return completed, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'Image {" ".join(self.parm_string.split())}'
 
     @staticmethod
     def do_exposures(start_time: Time, equip: Equipment, target_skycoord: SkyCoord,
-                     exposures: List[Exposure], quitat_time: Time) -> Tuple[bool, Time]:
+                     exposures: List[Exposure], quitat_time: Time,
+                     afinterval_object: Afinterval) -> Tuple[int, Time]:
         """ The imaging engine for ImageSeries, ColorSeries,
             and later, maybe other Directive child classes.
             A staticmethod, so that other ActionDirectives can call it
                 without entanglement.
             Returns tuple: all_exposures_completed [bool], end_time. """
         post_image_duration = TimeDelta(POST_IMAGE_DURATION * u.s)
-        running_time = start_time
-        running_time += equip.slew_scope(target_skycoord, start_time)
-        all_exposures_completed = False
+        running_time = equip.slew_scope(target_skycoord, start_time)
+        running_time = equip.slew_dome_to_skycoord(target_skycoord, running_time)
+        n_exposures_requested = sum([exposure.count for exposure in exposures])
+        n_exposures_completed = 0
         quitat_time_has_passed = False
         for i_exp, exposure in enumerate(exposures):
             exposure_duration = TimeDelta(exposure.seconds * u.s)
-            running_time += equip.use_filter(exposure.filter)
+            logging.debug(f'{running_time}       Start do_exposures(): '
+                          f'{exposure.count} exposures requested in filter '
+                          f'{exposure.filter}.')
+            running_time = equip.use_filter(exposure.filter, running_time)
             for i in range(exposure.count):
-                if running_time >= quitat_time:
-                    quitat_time_has_passed = True
-                    break
-                running_time += equip.start_or_resume_guider()
-                if running_time >= quitat_time:
-                    quitat_time_has_passed = True
-                    break
+                if quitat_time is not None:
+                    if running_time >= quitat_time:
+                        quitat_time_has_passed = True
+                        break
+                if afinterval_object is not None:
+                    completed, running_time = afinterval_object.perform(running_time)
+                    if completed:
+                        logging.debug(f'{running_time}       do_exposures(): '
+                                      f'Afinterval performed '
+                                      f'after {i} of {exposure.count} exposures.')
+                running_time = equip.start_or_resume_guider(running_time)
+                if quitat_time is not None:
+                    if running_time >= quitat_time:
+                        quitat_time_has_passed = True
+                        break
+                logging.debug(f'{running_time}       Start exposure {i + 1} of '
+                              f'{exposure.count}, {exposure.seconds} seconds.')
                 running_time += exposure_duration
                 running_time += post_image_duration
+                n_exposures_completed += 1
+
                 if running_time >= quitat_time:
                     quitat_time_has_passed = True
                     break
             if quitat_time_has_passed:
                 break  # fall through.
-        if quitat_time_has_passed:
-            all_exposures_completed = False
-        running_time += equip.stop_guider()
+        running_time = equip.stop_guider(running_time)
+        logging.debug(f'{running_time}       do_exposures(): '
+                      f'{n_exposures_completed} of {n_exposures_requested} '
+                      f'exposures requested were actually completed.')
         exit_time = running_time
-        return all_exposures_completed, exit_time
+        return n_exposures_completed, exit_time
 
     @property
     def n_completed(self) -> int:
@@ -586,6 +782,9 @@ class ImageSeries(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because it's assumed quitat always completes. """
         return self.count_partially_completed_this_plan
+
+    def __str__(self) -> str:
+        return f'ImageSeries object: {self.target_name}'
 
 
 class ColorSeries(ActionDirective):
@@ -599,11 +798,13 @@ class ColorSeries(ActionDirective):
             1.1 times the standard exposure at V=14 (specified in a constant atop
             this module). Fainter targets will need larger x numbers.
         """
-    def __init__(self, parm_string: str, comment: str, equip: Equipment):
+    def __init__(self, parm_string: str, comment: str, equip: Equipment,
+                 afinterval_object: Afinterval):
         self.parm_string = parm_string.strip()
         self.comment = comment
         self.quitat_time = None  # because possibly not known at time of construction.
         self.equip = equip              # Equipment object.
+        self.afinterval_object = afinterval_object
         self.template = COLOR_SEQUENCE_AT_V14
         self.target_name, self.exposure_factor, self.skycoord = \
             self.parse_parm_string(self.parm_string)
@@ -612,6 +813,7 @@ class ColorSeries(ActionDirective):
         self.colorseries_duration = None
         self.count_completed_this_plan = 0
         self.count_partially_completed_this_plan = 0
+        self.total_exposures_taken = 0
 
     def set_quitat_time(self, quitat_time: Time) -> None:
         """ Required, because when this object is constructed, QUITAT time may
@@ -642,27 +844,43 @@ class ColorSeries(ActionDirective):
             Color exposure data at a standard magnitude. """
         exposures = []
         for t_filter, t_seconds, t_count in template:
-            this_seconds = max(min(t_seconds * exposure_factor,
-                                   MAX_COLOR_EXPOSURE_DURATION),
-                               MIN_COLOR_EXPOSURE_DURATION)
+            this_seconds = int(round(max(min(t_seconds * exposure_factor,
+                                             MAX_COLOR_EXPOSURE_DURATION),
+                                         MIN_COLOR_EXPOSURE_DURATION)))
             exposures.append(Exposure(filter=t_filter,
                                       seconds=this_seconds,
                                       count=t_count))
         return exposures
 
+    # noinspection DuplicatedCode
     def perform(self, start_time: Time) -> Tuple[bool, Time]:
         """ Called at any time during a plan. Performs and accounts for time needed by
             slew, guider start and resumptions, filter changes, at-scope processing,
             and downloading. """
-        completed, exit_time = ImageSeries.do_exposures(start_time,
-                                                        self.equip, self.skycoord,
-                                                        self.exposures,
-                                                        self.quitat_time)
-        if completed:
+        logging.debug(f'{start_time}       ColorSeries: Quitat={self.quitat_time}.')
+        n_exposures_completed, exit_time = \
+            ImageSeries.do_exposures(start_time, self.equip, self.skycoord,
+                                     self.exposures, self.quitat_time,
+                                     self.afinterval_object)
+        n_exposures_requested = sum([exp.count for exp in self.exposures])
+        if n_exposures_completed == n_exposures_requested:
             self.count_completed_this_plan += 1
-        else:
+            logging.debug(f'{exit_time}       ColorSeries '
+                          f'// fully completed at {exit_time}.')
+        elif 0 < n_exposures_completed < n_exposures_requested:
             self.count_partially_completed_this_plan += 1
+            logging.debug(f'{exit_time}       ColorSeries '
+                          f'// partially completed at {exit_time}.')
+        else:
+            logging.debug(f'{exit_time}       ColorSeries '
+                          f'// no exposures taken at {exit_time}.')
+        self.total_exposures_taken += n_exposures_completed
+        completed = (n_exposures_completed == n_exposures_requested)
         return completed, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'Color {" ".join(self.parm_string.split())}'
 
     @property
     def n_completed(self) -> int:
@@ -674,6 +892,9 @@ class ColorSeries(ActionDirective):
         """ Returns zero because it's assumed quitat always completes. """
         return self.count_partially_completed_this_plan
 
+    def __str__(self) -> str:
+        return f'ColorSeries object: {self.target_name}'
+
 
 class Chill(ActionDirective):
     """ Represents one Chill directive. May appear anywhere in a Plan, but typically
@@ -683,7 +904,7 @@ class Chill(ActionDirective):
                   CHILL -35.1, 1.0
         """
     def __init__(self, parm_string: str, comment: str, equip: Equipment):
-        self.parm_string = parm_string
+        self.parm_string = parm_string.strip()
         self.comment = comment
         self.equip = equip  # Equipment object.
         self.chill_c, self.tolerance_c = self.parse_parm_string(self.parm_string)
@@ -708,7 +929,12 @@ class Chill(ActionDirective):
         exit_time = self.equip.change_camera_temp(self.chill_c, self.tolerance_c,
                                                   start_time)
         self.count_completed_this_plan += 1
+        logging.debug(f'{start_time}       Chill // completed at {exit_time}.')
         return True, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'CHILL {int(float(self.chill_c))}\N{DEGREE SIGN}C'
 
     @property
     def n_completed(self) -> int:
@@ -719,6 +945,9 @@ class Chill(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because it's assumed CHILL always completes. """
         return 0
+
+    def __str__(self) -> str:
+        return f'Chill object: {self.parm_string}'
 
 
 class Autofocus(ActionDirective):
@@ -736,7 +965,13 @@ class Autofocus(ActionDirective):
             including slew to focus star and return slew. """
         exit_time = start_time + self.autofocus_duration
         self.count_completed_this_plan += 1
+        logging.debug(f'{start_time}       Autofocus // completed at {exit_time}.')
         return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'AUTOFOCUS'
 
     @property
     def n_completed(self) -> int:
@@ -747,6 +982,9 @@ class Autofocus(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because it's assumed AUTOFOCUS always completes. """
         return 0
+
+    def __str__(self) -> str:
+        return f'Autofocus object'
 
 
 class Domeopen(ActionDirective):
@@ -766,7 +1004,13 @@ class Domeopen(ActionDirective):
         dome_actually_opened = (before_state == DomeState.CLOSED)
         if dome_actually_opened:
             self.count_completed_this_plan += 1
-        return dome_actually_opened, exit_time
+        logging.debug(f'{start_time}       Domeopen // completed at {exit_time}.')
+        return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'DOMEOPEN'
 
     @property
     def n_completed(self) -> int:
@@ -777,6 +1021,9 @@ class Domeopen(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because it's assumed DOMEOPEN always completes. """
         return 0
+
+    def __str__(self) -> str:
+        return f'Domeopen object'
 
 
 class Domeclose(ActionDirective):
@@ -796,7 +1043,13 @@ class Domeclose(ActionDirective):
         dome_actually_closed = (before_state == DomeState.OPEN)
         if dome_actually_closed:
             self.count_completed_this_plan += 1
-        return dome_actually_closed, exit_time
+        logging.debug(f'{start_time}       Domeclose // completed at {exit_time}.')
+        return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'DOMECLOSE'
 
     @property
     def n_completed(self) -> int:
@@ -807,6 +1060,9 @@ class Domeclose(ActionDirective):
     def n_partially_completed(self) -> int:
         """ Returns zero because it's assumed DOMECLOSE always completes. """
         return 0
+
+    def __str__(self) -> str:
+        return f'Domeclose object'
 
 
 class Shutdown(ActionDirective):
@@ -824,7 +1080,13 @@ class Shutdown(ActionDirective):
         # exit_time = self.equip.close_dome(time)
         exit_time = self.equip.change_camera_temp(CAMERA_TEMP_ON_WARMING, 1.0, time)
         self.count_completed_this_plan += 1
+        logging.debug(f'{start_time}       Shutdown // completed at {exit_time}.')
         return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'SHUTDOWN'
 
     @property
     def n_completed(self) -> int:
@@ -836,21 +1098,28 @@ class Shutdown(ActionDirective):
         """ Returns zero because it's assumed SHUTDOWN always completes. """
         return 0
 
+    def __str__(self) -> str:
+        return f'Shutdown object'
+
 
 _____CLASS_PLAN_and_FUNCTIONS__________________________________________ = 0
 
 
 class Plan:
     """ Holds all data defining one ACP Plan."""
-    def __init__(self, plan_name: str, comment: str):
+    def __init__(self, plan_name: str, comment: str, an_date_str: str):
         self.name = plan_name
         self.comment = comment
-        self.start_time = None
+        self.an_date_str = an_date_str
+        self.long_name = f'{self.an_date_str}_{self.name}'  # e.g., '20221130_A'
         self.afinterval_object = None
         self.sets_object = None
         self.quitat_object = None
         self.chain_object = None
         self.action_directives = []
+        self.plan_start_time = None
+        self.plan_exit_time = None
+        self.warning_error_lines = []
         self.closed = False
 
     def append(self, directive: ActionDirective) -> None:
@@ -864,6 +1133,14 @@ class Plan:
                 f'to previously closed plan \'{self.name}\'')
         self.action_directives.append(directive)
 
+    def close(self):
+        """ Close this plan, so that no more directives can be appended. """
+        self.closed = True
+
+    def __str__(self) -> str:
+        return f'Plan object: \'{self.name}\' ' \
+               f'with {len(self.action_directives)} action directives.'
+
 
 def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -> None:
     """ Master function of this module, calling other subsidiary functions. """
@@ -876,12 +1153,14 @@ def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -
     raw_string_list = parse_excel(excel_fullpath)
 
     plan_list = make_plan_list(raw_string_list, site)
-
     write_acp_plan_files(plans_top_directory, plan_list, an)
 
-
-
-
+    plan_dict = simulate_plans(an, plan_list)
+    plan_dict = make_warning_and_error_lines(plan_dict, an, min_moon_dist=45)
+    summary_lines = make_summary_lines(plan_dict, an)
+    write_summary_to_file(plans_top_directory='C:/Dev/photrix2023',
+                          an_string=an.an_date.an_str,
+                          lines=summary_lines)
 
 
 def parse_excel(excel_fullpath: str) -> List[str]:
@@ -1008,18 +1287,19 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
             case[content, comment]:
                 content, comment = content.strip(), comment.strip()
             case[content]:
-                content, comment = content.strip(), None
+                content, comment = content.strip(), ''
         match content.split(maxsplit=1):
             case[key, parm_string]:
                 key, parm_string = key.strip(), parm_string.strip()
             case[key]:
-                key, parm_string = key.strip(), None
+                key, parm_string = key.strip(), ''
 
         # If a plan raw string: add current Plan to list, and create a new one:
         if key.lower() == 'plan':
             if this_plan is not None:
+                this_plan.close()
                 plan_list.append(this_plan)
-            this_plan = Plan(parm_string, comment)
+            this_plan = Plan(parm_string, comment, an_date_str)
             continue
 
         if not isinstance(this_plan, Plan):
@@ -1031,7 +1311,7 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
             case 'afinterval':
                 this_plan.afinterval_object = Afinterval(parm_string, comment)
             case 'sets':
-                this_plan.sets_object = Sets(parm_string, comment)
+                this_plan.sets_object = Sets(parm_string, comment, explicitly_set=True)
             case 'quitat':
                 this_plan.quitat_object = Quitat(parm_string, comment, an)
             case 'chain':
@@ -1041,9 +1321,11 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
             case 'waituntil':
                 this_plan.append(Waituntil(parm_string, comment, an))
             case 'image':
-                this_plan.append(ImageSeries(parm_string, comment, equip))
+                this_plan.append(ImageSeries(parm_string, comment, equip,
+                                             this_plan.afinterval_object))
             case 'color':
-                this_plan.append(ColorSeries(parm_string, comment, equip))
+                this_plan.append(ColorSeries(parm_string, comment, equip,
+                                             this_plan.afinterval_object))
             case 'chill':
                 this_plan.append(Chill(parm_string, comment, equip))
             case 'autofocus':
@@ -1056,36 +1338,51 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
                 this_plan.append(Shutdown(comment, equip))
             case _:
                 ValueError(f'Directive \'{key}\' in line \'{s}\' not recognized.')
+
+    # END of string list has been reached.
     # Save the last plan for this Astronight:
     if this_plan is not None:
         plan_list.append(this_plan)
 
-    # Give quitat time to all [Waituntil, ImageSeries, and ColorSeries] in all Plans:
-    for this_plan in plan_list:
-        plan_quitat_time = this_plan.quitat_object.quitat_time
-        for directive in this_plan.action_directives:
-            if isinstance(directive, (Waituntil, ImageSeries, ColorSeries)):
-                directive.set_quitat_time(plan_quitat_time)
+    # Ensure that a Sets object exists for every Plan:
+    for plan in plan_list:
+        if plan.sets_object is None:
+            plan.sets_object = Sets('1', 'created as default', explicitly_set=False)
 
+    # Provide each plan's Afinterval OBJECT to all [ImageSeries and ColorSeries] objects
+    #   in that plan, because these respect AFINTERVAL *during* their performance:
+    for plan in plan_list:
+        for directive in plan.action_directives:
+            if isinstance(directive, (ImageSeries, ColorSeries)):
+                directive.afinterval_object = plan.afinterval_object
+
+    # Provide each plan's quitat TIME to all [Waituntil, ImageSeries, and ColorSeries]
+    #   objects in that plan, because these respect QUITAT *during* their performance:
+    for this_plan in plan_list:
+        if this_plan.quitat_object is not None:
+            for directive in this_plan.action_directives:
+                if isinstance(directive, (Waituntil, ImageSeries, ColorSeries)):
+                    directive.set_quitat_time(this_plan.quitat_object.quitat_time)
     return plan_list
 
 
 def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                          an: Astronight) -> None:
     """ Make and write ACP plan files for this Astronight. """
+    print()
     for this_plan in plan_list:
         lines = []
-        lines.extend([f'; ACP PLAN {this_plan.name} {this_plan.comment}',
-                      f'    as generated {Time.now().strftime("%Y-%m-%d %H:%M")} UTC '
-                      f'by photrix2023'])
+        lines.extend([f'; ACP PLAN {this_plan.long_name}; {this_plan.comment}',
+                      f';    as generated {Time.now().strftime("%Y-%m-%d %H:%M")} UTC '
+                      f' by photrix2023'])
         lines.extend(an.acp_header_string)
         lines.append(';')
-        if this_plan.sets_object is not None:
-            lines.append(f'#SETS {this_plan.sets_object.sets_requested}')
-        if this_plan.afinterval_object is not None:
-            lines.append(f'#AFINTERVAL {this_plan.afinterval_object.interval}')
         if this_plan.quitat_object is not None:
             lines.append(f'#QUITAT {this_plan.quitat_object.parm_string} ; utc')
+        if this_plan.afinterval_object is not None:
+            lines.append(f'#AFINTERVAL {this_plan.afinterval_object.minutes}')
+        if this_plan.sets_object is not None:
+            lines.append(f'#SETS {this_plan.sets_object.sets_requested}')
         lines.append(';')
         for a_dir in this_plan.action_directives:
             match a_dir:
@@ -1115,7 +1412,7 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
 
         # Remove consecutive blank comment lines:
         file_lines = []
-        for i, line in lines:
+        for i, line in enumerate(lines):
             if i == 0:
                 file_lines.append(line)
                 continue
@@ -1137,10 +1434,9 @@ def _make_imaging_acp_plan_lines(a_dir: ImageSeries | ColorSeries, type_string: 
     count_list = [exp.count for exp in a_dir.exposures]
     seconds_list = [exp.seconds for exp in a_dir.exposures]
     skycoord = a_dir.skycoord
-    ra_string = skycoord.ra.to_string(sep=':', precision=3)
-    dec_string = skycoord.dec.to_string(sep=':', precision=2,
-                                        alwayssign=True)
-    return [';', 'DITHER 0 ; ',
+    ra_string = (skycoord.ra/15).to_string(sep=':', precision=3, pad=True)  # RA hours.
+    dec_string = skycoord.dec.to_string(sep=':', precision=2, alwayssign=True, pad=True)
+    return [';', '#DITHER 0',
             f'#FILTER {", ".join([f for f in filter_list])}',
             f'#BINNING {", ".join(len(filter_list) * ["1"])}',
             f'#COUNT {", ".join([str(c) for c in count_list])}',
@@ -1149,9 +1445,286 @@ def _make_imaging_acp_plan_lines(a_dir: ImageSeries | ColorSeries, type_string: 
             f'{a_dir.target_name}\t{ra_string}\t{dec_string}', ';']
 
 
-def simulate_plans():
+def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
     """ (1) Simulate ACP's execution of the plans, keeping track of time of night, and
-        (2) generate user summary file including time and warnings.
+        (2) populate ActionDirective_SummaryLine objects with associated summary lines.
+        Return dict of [plan_name: (Plan object,
+            list of ActionDirective_SummaryLine objects)].
     """
+    plan_dict = OrderedDict()
+    sim_time = an.sun_antitransit_utc - TimeDelta(12 * u.hour)  # sim's running time
+    logging.debug(f'Logging file started at {Time.now()}')
+    quitat_detection_is_logged = False
+
+    for plan in plan_list:
+        plan.plan_start_time = sim_time
+        logging.debug(f'\n\n*********************************************************')
+        logging.debug(f'{plan.plan_start_time} Starting PLAN {plan.long_name}, '
+                      f'sets={plan.sets_object.sets_requested}')
+        if plan.afinterval_object is None:
+            logging.debug(f'{plan.plan_start_time} (No AFINTERVAL for this plan)')
+        else:
+            logging.debug(f'{plan.plan_start_time} '
+                          f'afinterval={plan.afinterval_object.minutes}')
+        if plan.quitat_object is None:
+            logging.debug(f'{plan.plan_start_time} (No QUITAT for this plan)')
+        else:
+            logging.debug(f'{plan.plan_start_time} '
+                          f'QUITAT={plan.quitat_object.quitat_time}')
+
+        # Make list of new ActionDirective_SummaryLine objects for this Plan,
+        #   one per ActionDirective object, with order preserved:
+        adsi_list = [ActionDirective_SummaryInfo(adir=adir)
+                     for adir in plan.action_directives]
+
+        # PERFORM TIME SIMULATION of this Plan by looping through sets until done.
+        # Update ActionDirective_SummaryLine objects, but postpone writing of
+        #   summary lines, so that they can include final values (esp. min_alt):
+        for i_set in range(1, plan.sets_object.sets_requested + 1):  # 1 for first set.
+            sim_time = plan.sets_object.start_new_set(sim_time)
+            logging.debug(f'{sim_time} Starting Set {i_set}')
+            completed = True  # default value.
+            for i, adsi in enumerate(adsi_list):
+                logging.debug(f'{sim_time}    {i_set}, {i}: {adsi.adir}')
+                match adsi.adir:
+                    case Comment():
+                        if i_set == 1:
+                            adsi.content = adsi.adir.summary_content_string()
+                        completed = True  # comments have no part in simulation.
+                    case Waituntil():
+                        if i_set == 1:
+                            start_time = sim_time
+                            completed, exit_time = adsi.adir.perform(start_time)
+                            adsi.time = start_time
+                            adsi.content = adsi.adir.summary_content_string()
+                            sim_time = exit_time  # update sim time.
+                    case ImageSeries() | ColorSeries():
+                        start_time = sim_time
+                        completed, exit_time = adsi.adir.perform(start_time)
+                        if i_set == 1:
+                            adsi.time = sim_time
+                            adsi.content = adsi.adir.summary_content_string()
+                        sc = adsi.adir.skycoord
+                        start_alt = an.engine.skycoord_azalt(sc, start_time)[1]
+                        exit_alt = an.engine.skycoord_azalt(sc, exit_time)[1]
+                        if adsi.min_alt is None:
+                            adsi.min_alt = min(start_alt, exit_alt)
+                        else:
+                            adsi.min_alt = min(start_alt, exit_alt, adsi.min_alt)
+                        sim_time = exit_time  # update sim time.
+                    case Chill() | Autofocus() | Domeopen() | Domeclose() | Shutdown():
+                        start_time = sim_time
+                        completed, exit_time = adsi.adir.perform(start_time)
+                        if i_set == 1:
+                            adsi.status = 'ok' if completed else '--'
+                            adsi.time = sim_time
+                            adsi.content = adsi.adir.summary_content_string()
+                        sim_time = exit_time  # update sim time.
+                # ----- After each ActionDirective:
+                if plan.quitat_object is not None:
+                    if sim_time >= plan.quitat_object.quitat_time:
+                        if not quitat_detection_is_logged:
+                            logging.debug(f'{sim_time}    QUITAT detected.')
+                            quitat_detection_is_logged = True
+                            # break
+
+            # ----- At end of each SET:
+            if completed:
+                plan.sets_object.mark_set_completed()
+            if plan.quitat_object is not None:
+                if sim_time >= plan.quitat_object.quitat_time:
+                    logging.debug(f'{sim_time}    Set {i_set} exits on QUITAT.')
+                    break
+            logging.debug(f'{sim_time}    Set {i_set} exits on completion.')
+
+        # ----- At end of this PLAN:
+        # Update summary status for this plan's ImageSeries and ColorSeries:
+        for adsi in adsi_list:
+            if isinstance(adsi.adir, (ImageSeries, ColorSeries)):
+                if plan.sets_object.sets_requested == 1:
+                    if adsi.adir.count_completed_this_plan == 1:
+                        adsi.status = 'ok'
+                    elif adsi.adir.count_partially_completed_this_plan > 0:
+                        if len(adsi.adir.exposures) == 1:
+                            adsi.status = f'{adsi.adir.total_exposures_taken}'
+                        else:
+                            adsi.status = 'partial'
+                    else:
+                        adsi.status = 'skip'
+                        adsi.time = None
+                else:
+                    adsi.status = f'{adsi.adir.count_completed_this_plan:3d}'  # simple.
+                    if adsi.adir.count_completed_this_plan == 0:
+                        adsi.time = None
+
+        # Perform CHAIN if present:
+        if plan.chain_object is not None:
+            sim_time = plan.chain_object.perform(sim_time)
+            logging.debug(f'{sim_time} Chaining set up to {plan.chain_object.filename}')
+        else:
+            logging.debug(f'{sim_time} No chaining was set up.')
+        plan.plan_exit_time = sim_time
+        logging.debug(f'{plan.plan_exit_time} Exiting PLAN {plan.long_name}')
+        plan_dict[plan.name] = OrderedDict({'plan':plan, 'adsi_list':adsi_list})
+
+    # At end of the PLAN LIST:
+    return plan_dict
+
+
+def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
+                                 min_moon_dist: float = 45) -> OrderedDict:
+    """ Check ActionDirectives for warning or error conditions, add to summary lines
+        where appropriate. """
+
+    # Warning: Plan has time gap from previous Plan, or Plan has no action directives:
+    plan_dict_values = list(plan_dict.values())
+    for i, value in enumerate(plan_dict_values):
+        if i >= 1:
+            prev_plan = plan_dict_values[i - 1]['plan']
+            prev_plan_exit_time = prev_plan.plan_exit_time
+            this_plan = value['plan']
+            this_plan_adsi_list = value['adsi_list']
+            this_plan_first_action_time = None
+            for adsi in this_plan_adsi_list:
+                if not isinstance(adsi.adir, (Waituntil, Comment)):
+                    this_plan_first_action_time = adsi.time
+                    break
+            if this_plan_first_action_time is None:
+                this_plan.warning_error_lines.append(
+                    '***** WARNING: Plan has no action directives '
+                    '(other than WAITUNTIL or comments).')
+            else:
+                time_gap_between_plans = \
+                    this_plan_first_action_time - prev_plan_exit_time
+                gap_in_minutes = int(round(time_gap_between_plans.sec / 60))
+                if gap_in_minutes >= 1:
+                    this_plan.warning_error_lines.append(
+                        f'***** WARNING: Plan suffers WAITUNTIL gap '
+                        f'of {gap_in_minutes} minutes.')
+
+    # Warning: Plan has Image or Color directive but no Autofocus or Afinterval:
+    for value in list(plan_dict.values()):
+        plan, adsi_list = value['plan'], value['adsi_list']
+        if plan.afinterval_object is None:
+            if all([not isinstance(adsi.adir, Autofocus) for adsi in adsi_list]):
+                if any([isinstance(adsi.adir, (ImageSeries, ColorSeries))
+                        for adsi in adsi_list]):
+                    plan.warning_error_lines.append(
+                        '***** WARNING: Plan has no Afinterval or Autofocus.')
+
+    # Warning: Plan has both Afinterval and Autofocus:
+    for value in list(plan_dict.values()):
+        plan, adsi_list = value['plan'], value['adsi_list']
+        if plan.afinterval_object is not None:
+            if any([isinstance(adsi.adir, Autofocus) for adsi in adsi_list]):
+                plan.warning_error_lines.append(
+                    '***** WARNING: Plan has both Afinterval and Autofocus.')
+
+    # Warning: Plan has SETS > 1 and Autofocus:
+    for value in list(plan_dict.values()):
+        plan, adsi_list = value['plan'], value['adsi_list']
+        if plan.sets_object is not None:
+            if plan.sets_object.sets_requested > 1:
+                if any([isinstance(adsi.adir, Autofocus) for adsi in adsi_list]):
+                    plan.warning_error_lines.append(
+                        '***** WARNING: Plan has both SETS > 1 Autofocus '
+                        '-- not recommended.')
+
+    # Warning: Target (Image or Color) is too close to moon:
+    for value in list(plan_dict.values()):
+        adsi_list = value['adsi_list']
+        for adsi in adsi_list:
+            if isinstance(adsi.adir, (ImageSeries, ColorSeries)):
+                moon_dist = an.moon_distance(adsi.adir.skycoord)
+                if moon_dist < min_moon_dist:
+                    adsi.warning_error_lines.append(
+                        f'***** WARNING: Target too close to moon, at '
+                        f'{int(round(moon_dist))}\N{DEGREE SIGN} < '
+                        f'min dist={int(round(min_moon_dist))}\N{DEGREE SIGN}.')
+
+    # ERROR: Plan chains to itself:
+    for value in list(plan_dict.values()):
+        plan = value['plan']
+        if plan.chain_object is not None:
+            if plan.chain_object.parm_string.lower() == plan.name.lower():
+                plan.warning_error_lines.append('***** ERROR: Plan chains to itself.')
+
+    return plan_dict
+
+
+def make_summary_lines(plan_dict: OrderedDict, an: Astronight) -> List[str]:
+    """ Takes plans dict {plan name: {'plan': Plan object, 'adsi_list': adsi_list}}
+        and returns list of strings comprising new summary (ready to write to file).
+    """
+    # Build summary header lines:
+    header_lines = []  # text lines of summary doc
+    header_lines.append(f'SUMMARY for AN{an.an_date.an_str}   '
+                        f'{an.an_date.day_of_week}     '
+                        f' for site \'{an.site_name}\'')
+    header_lines.append(f'     as generated by photrix2023 at '
+                        f'{Time.now().iso.rsplit(":", maxsplit=1)[0]} UTC')
+    header_lines.extend(an.acp_header_string)
+
+    # Plan loop:
+    all_summary_lines = header_lines
+    make = make_one_summary_line  # alias for brevity.
+    for plan_key in plan_dict:
+        plan = plan_dict[plan_key]['plan']
+        adsi_list = plan_dict[plan_key]['adsi_list']
+        plan_lines = []
+        plan_lines.extend(['', '', make(content=60 * '-')])
+        plan_lines.append(make(
+            content=f'Begin Plan {plan.long_name} :: '
+                    f'{hhmm(plan.plan_start_time)} to {hhmm(plan.plan_exit_time)} UTC'))
+        plan_lines.append(make(content=f'{plan.comment}'))
+        if plan.quitat_object is not None:
+            plan_lines.append(make(content=plan.quitat_object.summary_content_string()))
+            # plan_lines.append(make(
+            #     content=f'QUITAT {hhmm(plan.quitat_object.quitat_time)} utc'))
+        if plan.afinterval_object is not None:
+            plan_lines.append(make(
+                content=f'AFINTERVAL {plan.afinterval_object.minutes}'))
+        if plan.sets_object.explicitly_set:
+            plan_lines.append(make(
+                content=f'SETS {plan.sets_object.sets_requested}'))
+
+        # ActionDirective loop within Plan:
+        for adsi in adsi_list:
+            plan_lines.extend(adsi.make_summary_lines())
+
+        # Add CHAIN summary line if #CHAIN is present for this Plan:
+        if plan.chain_object is not None:
+            plan_lines.append(make(
+                content=f'CHAIN to \'{plan.chain_object.filename}\''))
+
+        # Add AFINTERVAL or AUTOFOCUS count line for this Plan:
+        if plan.afinterval_object is not None:
+            plan_lines.append(make(
+                content=f'{plan.afinterval_object.count_completed_this_plan} '
+                        f'AFINTERVAL autofocuses done.'))
+        n_autofocus_completed = sum([adsi.adir.count_completed_this_plan
+                                     for adsi in adsi_list
+                                     if isinstance(adsi.adir, Autofocus)])
+        if n_autofocus_completed > 0:
+            plan_lines.append(make(content=f'{n_autofocus_completed} AUTOFOCUS done.'))
+
+        # Wrap up this Plan's summary:
+        plan_lines.extend(plan.warning_error_lines)
+        all_summary_lines.extend(plan_lines)
+
+    return all_summary_lines
+
+
+def write_summary_to_file(plans_top_directory: str, an_string: str, lines: List[str]) \
+                          -> None:
+    """ Take list of strings and simply write them to a new Astronight summary file. """
     pass
 
+
+def make_one_summary_line(status: str = '', time: Time | None = None,
+                          alt: float | None = None, content: str = '') -> str:
+    """ Take data and return one formatted text line in summary. """
+    time_string = '' if time is None else hhmm(time)
+    alt_string = '' if alt is None else f'{int(float(alt)):3d}'
+    line = f'{status:>8} {time_string:>4} {alt_string:>3} {content}'
+    return line

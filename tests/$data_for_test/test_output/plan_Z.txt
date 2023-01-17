@@ -1,0 +1,10 @@
+; ACP PLAN 20221129_Z; Shutdown only.
+;    as generated 2023-01-04 01:49 UTC  by photrix2023
+; sun --- down: 2356-1346 UTC,   dark(-9°): 0038-1304 UTC  = 2211-1039 LST
+; moon -- 46% (22.4h,-15)   no moon: 0610-1304 UTC    transit: 0043
+; LST = UTC + 2130     UTC = LST + 0230    @sun antitransit = 0651 UTC
+;
+#SETS 1
+;
+#DOMECLOSE
+#SHUTDOWN

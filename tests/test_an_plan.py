@@ -783,6 +783,7 @@ def test_simulate_plans(caplog):
             f.write(f'{line.message}\n')
 
 
+# noinspection DuplicatedCode
 def test_make_warning_and_error_lines():
     site = make_new_site()
     # equip = photrix.an_plan.Equipment(site)
@@ -821,15 +822,19 @@ def test_make_warning_and_error_lines():
     assert sum([len(adir.warning_error_lines)
                 for adir in plan_dict['A']['adsi_list']]) == 1
     assert 'target too close to moon' in \
-           plan_dict['A']['adsi_list'][15].warning_error_lines[0].lower()
+           plan_dict['A']['adsi_list'][16].warning_error_lines[0].lower()
     assert 'at 1°' in \
-           plan_dict['A']['adsi_list'][15].warning_error_lines[0].lower()
+           plan_dict['A']['adsi_list'][16].warning_error_lines[0].lower()
     assert sum([len(adir.warning_error_lines)
-                for adir in plan_dict['B']['adsi_list']]) == 0
+                for adir in plan_dict['B']['adsi_list']]) == 1
+    assert 'ra,dec differs' in \
+           plan_dict['B']['adsi_list'][4].warning_error_lines[0].lower()
     assert sum([len(adir.warning_error_lines)
                 for adir in plan_dict['C']['adsi_list']]) == 0
     assert sum([len(adir.warning_error_lines)
-                for adir in plan_dict['D']['adsi_list']]) == 0
+                for adir in plan_dict['D']['adsi_list']]) == 1
+    assert 'ra,dec differs' in \
+           plan_dict['D']['adsi_list'][3].warning_error_lines[0].lower()
     assert sum([len(adir.warning_error_lines)
                 for adir in plan_dict['E']['adsi_list']]) == 0
     assert sum([len(adir.warning_error_lines)
@@ -840,34 +845,39 @@ def test_make_warning_and_error_lines():
 def test_make_summary_lines():
     """ From test Excel spreadsheet, write two summary files.
         Test by inspection (nb: content generation has already passed other tests). """
+
+    def make_summary(site, excel_filename, summary_filename):
+        """ Local nested function: read Excel spreadsheet, write out summary file. """
+        input_fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, excel_filename)
+        raw_string_list = photrix.an_plan.parse_excel(input_fullpath)
+        plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+        an_str = raw_string_list[0]
+        an = Astronight(site, an_str)
+        plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+        plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
+        summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
+        output_fullpath = os.path.join('C:/Dev/photrix2023', summary_filename)
+        with open(output_fullpath, 'w') as f:
+            for line in summary_lines:
+                f.write(f'{line}\n')
+
     site = make_new_site()
 
     # Generate from a mostly valid Excel spreadsheet:
-    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_big.xlsx')
-    raw_string_list = photrix.an_plan.parse_excel(fullpath)
-    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
-    an_str = raw_string_list[0]
-    an = Astronight(site, an_str)
-    plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
-    plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
-    summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
-    output_fullpath = 'C:/Dev/photrix2023/summary_big.txt'
-    with open(output_fullpath, 'w') as f:
-        for line in summary_lines:
-            f.write(f'{line}\n')
+    make_summary(site, 'planning_big.xlsx', 'summary_big.txt')
 
     # Generate from an Excel spreadsheet with error and warning conditions:
-    fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_errors.xlsx')
-    raw_string_list = photrix.an_plan.parse_excel(fullpath)
-    plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
-    an_str = raw_string_list[0]
-    an = Astronight(site, an_str)
-    plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
-    plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
-    summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
-    output_fullpath = 'C:/Dev/photrix2023/summary_errors.txt'
-    with open(output_fullpath, 'w') as f:
-        for line in summary_lines:
-            f.write(f'{line}\n')
+    make_summary(site, 'planning_errors.xlsx', 'summary_errors.txt')
 
-
+    # fullpath = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning_errors.xlsx')
+    # raw_string_list = photrix.an_plan.parse_excel(fullpath)
+    # plan_list = photrix.an_plan.make_plan_list(raw_string_list, site)
+    # an_str = raw_string_list[0]
+    # an = Astronight(site, an_str)
+    # plan_dict = photrix.an_plan.simulate_plans(an, plan_list)
+    # plan_dict = photrix.an_plan.make_warning_and_error_lines(plan_dict, an)
+    # summary_lines = photrix.an_plan.make_summary_lines(plan_dict, an)
+    # output_fullpath = 'C:/Dev/photrix2023/summary_errors.txt'
+    # with open(output_fullpath, 'w') as f:
+    #     for line in summary_lines:
+    #         f.write(f'{line}\n')

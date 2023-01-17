@@ -1,0 +1,131 @@
+; ACP PLAN 20221129_A; MP 12746, 3229, 3166.
+;    as generated 2023-01-04 01:49 UTC  by photrix2023
+; sun --- down: 2356-1346 UTC,   dark(-9°): 0038-1304 UTC  = 2211-1039 LST
+; moon -- 46% (22.4h,-15)   no moon: 0610-1304 UTC    transit: 0043
+; LST = UTC + 2130     UTC = LST + 0230    @sun antitransit = 0651 UTC
+;
+#QUITAT 05:35 ; utc
+#SETS 1
+;
+#WAITUNTIL 1, -2
+#DOMEOPEN
+;
+#WAITUNTIL 1, -6
+#CHILL -35
+;
+#WAITUNTIL 1, -10
+;comment between first WAITUNTIL and first QUITAT.
+#AUTOFOCUS
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 4
+#INTERVAL 900
+;---- from IMAGE directive -----
+MP_12746	01:22:30.810	+14:29:40.31
+;
+;~0155 UTC
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 3
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+;comment after first MP_3166.
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#AUTOFOCUS
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#AUTOFOCUS
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;

@@ -118,10 +118,27 @@ def make_lc_an_roster(an_date: str | int,
     :param max_vmag: maximum estimated V mag for MP to be kept in table & plots. [float]
     :return: [None]
     """
-    # Make and print table of values, 1 line/MP, sorted by earliest observable UTC:
     site_fullpath = os.path.join(DATA_DIRECTORY, 'site', site_name + '.ini')
     site = Site(site_fullpath)
     an = Astronight(site, an_date)
+
+    # First, make & print all header lines:
+    day_of_week_string = DAYS_OF_WEEK[datetime(an.an_date.year,
+                                               an.an_date.month,
+                                               an.an_date.day).weekday()]
+    roster_header = [f'MP Roster for AN {an.an_date.an_str}  '
+                     f'{day_of_week_string.upper()}'
+                     f'    (site = {site.name})',
+                     f'photrix2023   min_moon_dist={min_moon_dist}°   '
+                     f'MPfiles from {mpfile_directory}',
+                     f'{_an_roster_header_string(an)}']
+    table_header = [f'{"".join(100*["-"])}',
+                    f'{"".ljust(16)}                       Exp Duty Mot.        ',
+                    f'{"".ljust(16)}Start Tran  End   V    (s)  %  "/exp    P/hr']
+    for line in roster_header:
+        print(line)
+
+    # Make and print table of values, 1 line/MP, sorted by earliest observable UTC:
     df_an_table = make_df_an_table(an, min_hours_observable=min_hours,
                                    mpfile_directory=mpfile_directory)
 
@@ -140,20 +157,7 @@ def make_lc_an_roster(an_date: str | int,
     df = df.loc[mps_to_keep, :].copy()
     if len(df) == 0:
         raise NoObservableMPsError(f'{an_date} {site_name}')
-
-    # Build header for roster file:
-    day_of_week_string = DAYS_OF_WEEK[datetime(an.an_date.year,
-                                               an.an_date.month,
-                                               an.an_date.day).weekday()]
-    roster_header = [f'MP Roster for AN {an.an_date.an_str}  '
-                     f'{day_of_week_string.upper()}'
-                     f'    (site = {site.name})',
-                     f'{_an_roster_header_string(an)}',
-                     f'photrix2023   min_moon_dist={min_moon_dist}°   ' 
-                     f'MPfiles from {mpfile_directory}',
-                     f'{"".join(100*["-"])}',
-                     f'{"".ljust(16)}                       Exp Duty Mot.        ',
-                     f'{"".ljust(16)}Start Tran  End   V    (s)  %  "/exp    P/hr']
+    print(f'   {len(df)} MPs in roster.')
 
     # Make one line per observable MP:
     table_lines = []
@@ -181,7 +185,6 @@ def make_lc_an_roster(an_date: str | int,
                                period_string,
                                ' ' + df.loc[i, 'PhotrixPlanning']]
         table_lines.append(' '.join(table_line_elements))
-    print(roster_header)
     if len(too_late_lines) >= 1:
         print('\n\n' + '\n'.join(too_late_lines))
 
@@ -205,6 +208,7 @@ def make_lc_an_roster(an_date: str | int,
     text_file_fullpath = os.path.join(text_file_directory, text_filename)
     with open(text_file_fullpath, 'w') as this_file:
         this_file.write('\n'.join(roster_header))
+        this_file.write('\n'.join(table_header))
         this_file.write('\n' + '\n'.join(table_lines))
         if len(too_late_lines) >= 1:
             this_file.write('\n\n' + '\n'.join(too_late_lines))
@@ -214,6 +218,8 @@ def make_lc_an_roster(an_date: str | int,
     df_for_plots = df.loc[use_for_plots, :]
     # TODO: restore call to make_coverage_plots() when the above all tests well.
     _make_coverage_plots(an, df_for_plots)
+
+    print()
 
 
 # noinspection DuplicatedCode
@@ -416,6 +422,7 @@ def _make_coverage_plots(an, df_for_plots) -> None:
     hours_dark_end = (an.dark_end_utc - utc_zero).to(u.hour).value
 
     # Define plot structure (for both hourly coverage and phase coverage):
+    plt.close('all')
     mps_to_plot = df['MPnumber']
     n_plots = len(mps_to_plot)  # count of individual MP plots.
     n_cols, n_rows = 3, 3
@@ -608,6 +615,8 @@ def _make_coverage_plots(an, df_for_plots) -> None:
                                                  'AN' + an_string, filename)
             # print('Saving phase coverage to', acp_planning_fullpath)
             fig_p.savefig(acp_planning_fullpath)
+
+    plt.close('all')
 
 
 def calc_exp_time(ref_mag: float, exp_time_table: List[Tuple]) -> float:

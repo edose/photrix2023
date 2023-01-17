@@ -1,0 +1,103 @@
+; ACP PLAN 20221129_C; MP 3166, 3229, 858 NEW.
+;    as generated 2023-01-04 01:49 UTC  by photrix2023
+; sun --- down: 2356-1346 UTC,   dark(-9°): 0038-1304 UTC  = 2211-1039 LST
+; moon -- 46% (22.4h,-15)   no moon: 0610-1304 UTC    transit: 0043
+; LST = UTC + 2130     UTC = LST + 0230    @sun antitransit = 0651 UTC
+;
+#QUITAT 09:50 ; utc
+#AFINTERVAL 120
+#SETS 1
+;
+#WAITUNTIL 1, 07:35
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 780
+;---- from IMAGE directive -----
+MP_3229	01:23:14.220	+25:19:09.11
+;
+#DITHER 0
+#FILTER SR, SG, SI, SR, SI, SG, SR
+#BINNING 1, 1, 1, 1, 1, 1, 1
+#COUNT 1, 1, 1, 1, 1, 1, 1
+#INTERVAL 126, 280, 252, 126, 252, 280, 126
+;---- from COLOR directive -----
+MP_333	06:00:00.000	-01:00:00.00
+;
+;~0815 UTC
+;
+#DITHER 0
+#FILTER BB, R
+#BINNING 1, 1
+#COUNT 1, 2
+#INTERVAL 420, 150
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 720
+;---- from IMAGE directive -----
+MP_858	08:09:48.577	+27:19:58.46
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 720
+;---- from IMAGE directive -----
+MP_858	08:09:48.577	+27:19:58.46
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 720
+;---- from IMAGE directive -----
+MP_858	08:09:48.577	+27:19:58.46
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 1
+#INTERVAL 420
+;---- from IMAGE directive -----
+MP_3166	04:24:52.952	+20:55:06.97
+;
+#DITHER 0
+#FILTER BB
+#BINNING 1
+#COUNT 2
+#INTERVAL 720
+;---- from IMAGE directive -----
+MP_858	08:09:48.577	+27:19:58.46
+;
+#CHAIN plan_20221129_d.txt

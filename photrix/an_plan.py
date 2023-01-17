@@ -28,7 +28,7 @@ from astropack.util import hhmm
 
 THIS_PACKAGE_ROOT_DIRECTORY = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
-INI_DIRECTORY = os.path.join(THIS_PACKAGE_ROOT_DIRECTORY, 'ini')
+INI_DIRECTORY = os.path.join(THIS_PACKAGE_ROOT_DIRECTORY, 'data', 'site')
 DATA_FOR_TEST_DIRECTORY = os.path.join(THIS_PACKAGE_ROOT_DIRECTORY,
                                        'tests', '$data_for_test')
 EXCEL_TEST_FULLPATH = os.path.join(DATA_FOR_TEST_DIRECTORY, 'planning.xlsx')
@@ -1149,7 +1149,8 @@ def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -
     an_date_str = str(an_date)
     an = Astronight(site, an_date_str)
 
-    excel_fullpath = os.path.join(plans_top_directory, an_date_str, 'planning.xlsx')
+    excel_fullpath = os.path.join(plans_top_directory,
+                                  'AN' + an_date_str, 'planning.xlsx')
     raw_string_list = parse_excel(excel_fullpath)
 
     plan_list = make_plan_list(raw_string_list, site)
@@ -1158,7 +1159,7 @@ def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -
     plan_dict = simulate_plans(an, plan_list)
     plan_dict = make_warning_and_error_lines(plan_dict, an, min_moon_dist=45)
     summary_lines = make_summary_lines(plan_dict, an)
-    write_summary_to_file(plans_top_directory='C:/Dev/photrix2023',
+    write_summary_to_file(plans_top_directory=plans_top_directory,
                           an_string=an.an_date.an_str,
                           lines=summary_lines)
 
@@ -1378,18 +1379,24 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
         lines.extend(an.acp_header_string)
         lines.append(';')
         if this_plan.quitat_object is not None:
-            lines.append(f'#QUITAT {this_plan.quitat_object.parm_string} ; utc')
+            time_str = this_plan.quitat_object.quitat_time.strftime("%m/%d/%Y %H:%M")
+            lines.append(f'#QUITAT {time_str} ; utc')
         if this_plan.afinterval_object is not None:
             lines.append(f'#AFINTERVAL {this_plan.afinterval_object.minutes}')
         if this_plan.sets_object is not None:
-            lines.append(f'#SETS {this_plan.sets_object.sets_requested}')
+            if this_plan.sets_object.sets_requested > 1:
+                lines.append(f'#SETS {this_plan.sets_object.sets_requested}')
         lines.append(';')
         for a_dir in this_plan.action_directives:
             match a_dir:
                 case Comment():
                     lines.append(f';{a_dir.comment_text}')
                 case Waituntil():
-                    lines.extend([';', f'#WAITUNTIL 1, {a_dir.parm_string}'])
+                    if a_dir.parm_type == 'UTC':
+                        time_str = a_dir.waituntil_time.strftime("%m/%d/%Y %H:%M")
+                        lines.extend([';', f'#WAITUNTIL 1, {time_str} ; utc'])
+                    else:
+                        lines.extend([';', f'#WAITUNTIL 1, {a_dir.parm} ; deg sun alt'])
                 case ImageSeries():
                     new_lines = _make_imaging_acp_plan_lines(a_dir, 'IMAGE')
                     lines.extend(new_lines)
@@ -1401,9 +1408,9 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                 case Autofocus():
                     lines.append(f'#AUTOFOCUS')
                 case Domeopen():
-                    lines.append(f'#DOMEOPEN')
+                    lines.extend([f'#DOMEOPEN', ';'])
                 case Domeclose():
-                    lines.append(f'#DOMECLOSE')
+                    lines.extend([f'#DOMECLOSE', ';'])
                 case Shutdown():
                     lines.append(f'#SHUTDOWN')
 
@@ -1421,9 +1428,10 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
             file_lines.append(line.replace('\n', ''))  # no newline characters.
 
         # Write this ACP plan file:
-        filename = 'plan_' + this_plan.name + '.txt'
-        output_fullpath = os.path.join(plans_top_directory, filename)
-        print('PRINT plan ' + this_plan.name)
+        filename = f'plan_{an.an_date.an_str}_{this_plan.name}.txt'
+        output_fullpath = os.path.join(plans_top_directory,
+                                       'AN' + an.an_date.an_str, filename)
+        print(f'writing {filename}')
         with open(output_fullpath, 'w') as this_file:
             this_file.write('\n'.join(file_lines))
 
@@ -1437,12 +1445,11 @@ def _make_imaging_acp_plan_lines(a_dir: ImageSeries | ColorSeries, type_string: 
     ra_string = (skycoord.ra/15).to_string(sep=':', precision=3, pad=True)  # RA hours.
     dec_string = skycoord.dec.to_string(sep=':', precision=2, alwayssign=True, pad=True)
     return [';', '#DITHER 0',
-            f'#FILTER {", ".join([f for f in filter_list])}',
-            f'#BINNING {", ".join(len(filter_list) * ["1"])}',
-            f'#COUNT {", ".join([str(c) for c in count_list])}',
-            f'#INTERVAL {", ".join([str(s) for s in seconds_list])}',
-            f';---- from {type_string} directive -----',
-            f'{a_dir.target_name}\t{ra_string}\t{dec_string}', ';']
+            f'#FILTER {",".join([f for f in filter_list])}',
+            f'#BINNING {",".join(len(filter_list) * ["1"])}',
+            f'#COUNT {",".join([str(c) for c in count_list])}',
+            f'#INTERVAL {",".join([str(s) for s in seconds_list])}',
+            f'{a_dir.target_name}\t{ra_string}\t{dec_string} ; {type_string}', ';']
 
 
 def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
@@ -1565,7 +1572,7 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
             logging.debug(f'{sim_time} No chaining was set up.')
         plan.plan_exit_time = sim_time
         logging.debug(f'{plan.plan_exit_time} Exiting PLAN {plan.long_name}')
-        plan_dict[plan.name] = OrderedDict({'plan':plan, 'adsi_list':adsi_list})
+        plan_dict[plan.name] = OrderedDict({'plan': plan, 'adsi_list': adsi_list})
 
     # At end of the PLAN LIST:
     return plan_dict
@@ -1575,6 +1582,24 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
                                  min_moon_dist: float = 45) -> OrderedDict:
     """ Check ActionDirectives for warning or error conditions, add to summary lines
         where appropriate. """
+
+    # Warning: Target RA,Dec differs from RA,Dec of target's first directive:
+    # TODO, long-term: Excel gives each targets' RA,Dec one time only, at very top.
+    first_sc_dict = dict()
+    plan_dict_values = list(plan_dict.values())
+    for value in plan_dict_values:
+        adsi_list = value['adsi_list']
+        for adsi in adsi_list:
+            if isinstance(adsi.adir, (ImageSeries, ColorSeries)):
+                this_sc = adsi.adir.skycoord
+                first_sc = first_sc_dict.get(adsi.adir.target_name, None)
+                if first_sc is None:
+                    first_sc_dict[adsi.adir.target_name] = this_sc
+                else:
+                    if this_sc.separation(first_sc) > 1 * u.arcsec:
+                        adsi.warning_error_lines.append(
+                            f'***** WARNING: RA,Dec differs from '
+                            f'RA,Dec of target\'s first directive of this session.')
 
     # Warning: Plan has time gap from previous Plan, or Plan has no action directives:
     plan_dict_values = list(plan_dict.values())
@@ -1649,6 +1674,25 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
             if plan.chain_object.parm_string.lower() == plan.name.lower():
                 plan.warning_error_lines.append('***** ERROR: Plan chains to itself.')
 
+    # NOTE (not an error or warning): Add Az,Alt for first imaging target:
+    first_imaging_adsi = None
+    for value in list(plan_dict.values()):
+        adsi_list = value['adsi_list']
+        for adsi in adsi_list:
+            if isinstance(adsi.adir, (ImageSeries, ColorSeries)):
+                first_imaging_adsi = adsi
+                break
+        if first_imaging_adsi is not None:
+            break
+    if first_imaging_adsi is not None:
+        site_earth_loc = EarthLocation.from_geodetic(an.site.longitude * u.degree,
+                                                     an.site.latitude * u.degree,
+                                                     an.site.elevation * u.m)
+        az = first_imaging_adsi.adir.skycoord.transform_to(
+            AltAz(obstime=first_imaging_adsi.time, location=site_earth_loc)).az.degree
+        first_imaging_adsi.warning_error_lines.append(
+            f'Initial azimuth {int(round(az)) % 360}\N{DEGREE SIGN}')
+
     return plan_dict
 
 
@@ -1695,6 +1739,7 @@ def make_summary_lines(plan_dict: OrderedDict, an: Astronight) -> List[str]:
         # Add CHAIN summary line if #CHAIN is present for this Plan:
         if plan.chain_object is not None:
             plan_lines.append(make(
+                time=plan.plan_exit_time,
                 content=f'CHAIN to \'{plan.chain_object.filename}\''))
 
         # Add AFINTERVAL or AUTOFOCUS count line for this Plan:

@@ -517,7 +517,7 @@ def _make_coverage_plots(an, df_for_plots) -> None:
                     (df.loc[this_mp, 'EndUTC'] - utc_zero).to(u.hour).value
                 right_box_end = hours_dark_end
                 if right_box_end > right_box_start:
-                    ax_p.add_patch(patches.Rectangle(
+                    ax_h.add_patch(patches.Rectangle(
                         (right_box_start, 0),  # (x,y)bottom left, width, height
                         right_box_end - right_box_start,
                         max_nobs_to_plot,

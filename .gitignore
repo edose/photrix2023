@@ -7,3 +7,5 @@ __pycache__/
 tests/de440s.bsp
 
 *.pyc
+
+*.xml

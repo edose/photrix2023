@@ -1,3 +1,8 @@
+.idea/
+test/__pycache__/
+test/.cache/
+__pycache__/
+.cache/
 
 tests/de440s.bsp
 

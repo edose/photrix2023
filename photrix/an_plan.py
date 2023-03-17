@@ -58,6 +58,7 @@ CAMERA_TEMP_ON_WARMING = 6.0
 SHUTDOWN_DURATION = 300
 MIN_COLOR_EXPOSURE_DURATION = 90
 MAX_COLOR_EXPOSURE_DURATION = 900
+ROTATOR_DEGREES_PER_SECOND = 2
 
 WAITUNTIL_MAX_WAITING_TIME = 12 * 3600  # 12 hours.
 
@@ -101,7 +102,8 @@ class Exposure:
 
 class Equipment:
     """ Represents current state and basic actions of mount, camera, dome, etc. """
-    def __init__(self, site: Site):
+    def __init__(self, site: Site, has_rotator: bool,
+                 default_rotation_degrees_string: str | None):
         self.site = site
         self.site_earth_loc = EarthLocation.from_geodetic(site.longitude * u.degree,
                                                           site.latitude * u.degree,
@@ -114,6 +116,9 @@ class Equipment:
         self.dome_azimuth_degrees = DOME_HOME_AZIMUTH
         self.camera_temp_c = CAMERA_AMBIENT_TEMP
         self.current_filter = None  # unknown; assume filter a change on first request.
+        self.has_rotator = has_rotator
+        self.default_rotation_degrees_string = default_rotation_degrees_string
+        self.rotator_angle = 0.0
         self.guider_running = False
 
     def open_dome(self, time: Time) -> Time:
@@ -121,7 +126,8 @@ class Equipment:
         seconds = DOME_SHUTTER_DURATION if self.dome == DomeState.CLOSED else 1.0
         self.dome = DomeState.OPEN
         exit_time = time + TimeDelta(seconds * u.s)
-        logging.debug(f'{time}       Equipment.open_dome() // completed at {exit_time}.')
+        logging.debug(f'{time}       Equipment.open_dome() '
+                      f'// completed at {exit_time}.')
         return exit_time
 
     def close_dome(self, time: Time) -> Time:
@@ -130,7 +136,8 @@ class Equipment:
         seconds = DOME_SHUTTER_DURATION if self.dome == DomeState.OPEN else 1.0
         self.dome = DomeState.CLOSED
         exit_time = time + TimeDelta(seconds * u.s)
-        logging.debug(f'{time}       Equipment.close_dome() // completed at {exit_time}.')
+        logging.debug(f'{time}       Equipment.close_dome() '
+                      f'// completed at {exit_time}.')
         return exit_time
 
     def slew_scope(self, target_skycoord: SkyCoord, time: Time) -> Time:
@@ -225,6 +232,25 @@ class Equipment:
                       f'FILTER CHANGE // completed at {exit_time}.')
         return exit_time
 
+    def move_rotator(self, new_rotator_angle_string: str | None, time: Time) -> Time:
+        """ Move rotator. Cannot go negative or above 360 deg."""
+        if not self.has_rotator:
+            return time  # no-op.
+        if new_rotator_angle_string is None:
+            new_rotator_angle_string = self.default_rotation_degrees_string
+        try:
+            new_rotator_angle = float(new_rotator_angle_string) % 360.0
+        except (ValueError, TypeError):
+            raise ValueError(f'Equipment.move_rotator() cannot interpret '
+                             f'rotator angle string \'{new_rotator_angle_string}\'')
+        distance_to_move = abs(self.rotator_angle - new_rotator_angle)
+        seconds_to_move = distance_to_move / ROTATOR_DEGREES_PER_SECOND + 1.0
+        self.rotator_angle = new_rotator_angle
+        exit_time = time + TimeDelta(seconds_to_move * u.s)
+        logging.debug(f'{time}       Equipment.move_rotator({new_rotator_angle}) '
+                      f'ROTATOR MOVE // completed at {exit_time}.')
+        return exit_time
+
     def shutdown(self, time: Time) -> Time:
         """ Park scope and warm camera (assumes dome is already closed). """
         parked_time = self.park_scope(time)
@@ -306,7 +332,7 @@ class PlanDirective(ABC):
     """ The __init__() method parses the parameter string and stores data needed
         to operate this plan directive. """
     # def summary_content_string(self) -> str:
-    #     """ Return content string to appear in directive's line within summary file. """
+    #     """ Return content string for directive's line within summary file. """
     #     raise NotImplementedError
 
 
@@ -632,8 +658,8 @@ class ImageSeries(ActionDirective):
     """ Represents one Image directive (one target, one or more filters and/or
         exposures). May break off just before any exposure to obey QUITAT.
         Cell Syntax examples:
-            IMAGE MP_3166 BB=420s(2) Clear=220s 04h 24m 52.9516s  +20° 55' 06.970"
-            IMAGE MP_3166 BB=420s(2) Clear=220s 04:24:52.9516  +20:55:06.970
+            IMAGE MP_3166 BB=420s(2) Clear=220s @ 04h 24m 52.9516s  +20° 55' 06.970"
+            IMAGE MP_3166 BB=420s(2) Clear=220s @ 04:24:52.9516  +20:55:06.970 /ROT 8.5"
             May have any number of filter=exp_time(count) fields in the middle.
             If (count) is absent, one exposure is taken.
     """
@@ -644,8 +670,8 @@ class ImageSeries(ActionDirective):
         self.quitat_time = None  # because possibly not known at time of construction.
         self.equip = equip              # Equipment object.
         self.afinterval_object = afinterval_object
-        self.target_name, self.exposure_strings, self.skycoord = \
-            self.parse_parm_string(self.parm_string)
+        self.target_name, self.exposure_strings, self.skycoord, \
+            self.rotator_angle_string = self.parse_parm_string(self.parm_string)
         self.exposures = self.parse_exposures(self.exposure_strings)
         self.post_image_duration = TimeDelta(POST_IMAGE_DURATION * u.s)
         self.imageseries_duration = None
@@ -660,21 +686,28 @@ class ImageSeries(ActionDirective):
 
     # noinspection DuplicatedCode
     @staticmethod
-    def parse_parm_string(parm_string: str) -> Tuple[str, List[str], SkyCoord]:
-        """ Parse parm string, return target name, exposure_string, & radec_string. """
-        # Extract the radec_string & make target SkyCoord:
+    def parse_parm_string(parm_string: str) -> Tuple[str, List[str], SkyCoord, str]:
+        """ Parse parm string, return target name, exposure_string, astropy SkyCoord,
+            and rotator_angle_string."""
+        # Extract the string elements:
         splits = [s.strip() for s in parm_string.rsplit('@', maxsplit=1)]
         if len(splits) != 2:
             raise ValueError(f'IMAGE {parm_string} cannot be parsed (missing @ ?).')
-        skycoord = SkyCoord(splits[1], unit=(u.hourangle, u.deg))
+        target_and_exposure = splits[0]
+        radec_and_rotator = splits[1]
 
         # Extract target name and exposure strings:
-        splits = [s.strip() for s in splits[0].split()]
+        splits = [s.strip() for s in target_and_exposure.split()]
         if len(splits) <= 1:
             raise ValueError(f'IMAGE {parm_string} cannot be parsed.')
         target_name = splits[0]
         exposure_strings = splits[1:]
-        return target_name, exposure_strings, skycoord
+
+        # Extract RA,Dec, and rotator angle if present:
+        splits = [s.strip() for s in radec_and_rotator.split('/ROT')]
+        skycoord = SkyCoord(splits[0], unit=(u.hourangle, u.deg))
+        rotator_angle_string = splits[1] if len(splits) == 2 else None
+        return target_name, exposure_strings, skycoord, rotator_angle_string
 
     @staticmethod
     def parse_exposures(exposure_strings: List[str]) -> List[Exposure]:
@@ -701,7 +734,9 @@ class ImageSeries(ActionDirective):
             and downloading. """
         logging.debug(f'{start_time}       ImageSeries: Quitat={self.quitat_time}.')
         n_exposures_completed, exit_time = \
-            self.do_exposures(start_time, self.equip, self.skycoord, self.exposures,
+            self.do_exposures(start_time, self.equip, self.skycoord,
+                              self.rotator_angle_string,
+                              self.exposures,
                               self.quitat_time, self.afinterval_object)
         n_exposures_requested = sum([exp.count for exp in self.exposures])
         if n_exposures_completed == n_exposures_requested:
@@ -721,20 +756,28 @@ class ImageSeries(ActionDirective):
 
     def summary_content_string(self) -> str:
         """ Returns content string for summary file line. """
-        return f'Image {" ".join(self.parm_string.split())}'
+        summary_content_string = f'Image {" ".join(self.parm_string.split())}'
+        summary_content_string = \
+            summary_content_string.rsplit('/ROT', maxsplit=1)[0].rstrip()
+        if self.equip.has_rotator:
+            summary_content_string += f' rot:{self.equip.rotator_angle}\N{DEGREE SIGN}'
+        return summary_content_string
 
     @staticmethod
     def do_exposures(start_time: Time, equip: Equipment, target_skycoord: SkyCoord,
+                     rotator_angle_string: str | None,
                      exposures: List[Exposure], quitat_time: Time,
                      afinterval_object: Afinterval) -> Tuple[int, Time]:
-        """ The imaging engine for ImageSeries, ColorSeries,
-            and later, maybe other Directive child classes.
-            A staticmethod, so that other ActionDirectives can call it
+        """ The imaging engine for ImageSeries AND ColorSeries,
+                and later, maybe other Directive child classes.
+            A STATIC method, so that other ActionDirectives can call it
                 without entanglement.
             Returns tuple: all_exposures_completed [bool], end_time. """
         post_image_duration = TimeDelta(POST_IMAGE_DURATION * u.s)
         running_time = equip.slew_scope(target_skycoord, start_time)
         running_time = equip.slew_dome_to_skycoord(target_skycoord, running_time)
+        if equip.has_rotator:
+            running_time = equip.move_rotator(rotator_angle_string, running_time)
         n_exposures_requested = sum([exposure.count for exposure in exposures])
         n_exposures_completed = 0
         quitat_time_has_passed = False
@@ -811,8 +854,8 @@ class ColorSeries(ActionDirective):
         self.equip = equip              # Equipment object.
         self.afinterval_object = afinterval_object
         self.template = COLOR_SEQUENCE_AT_V14
-        self.target_name, self.exposure_factor, self.skycoord = \
-            self.parse_parm_string(self.parm_string)
+        self.target_name, self.exposure_factor, self.skycoord, \
+            self.rotator_angle_string = self.parse_parm_string(self.parm_string)
         self.exposures = self.make_color_exposures(self.exposure_factor, self.template)
         self.post_image_duration = TimeDelta(POST_IMAGE_DURATION * u.s)
         self.colorseries_duration = None
@@ -827,21 +870,27 @@ class ColorSeries(ActionDirective):
 
     # noinspection DuplicatedCode
     @staticmethod
-    def parse_parm_string(parm_string: str) -> Tuple[str, float, SkyCoord]:
+    def parse_parm_string(parm_string: str) -> Tuple[str, float, SkyCoord, str]:
         """ Parse parm string, return target name, exposure_factor, & radec_string. """
         # Extract the radec_string & make target SkyCoord:
         splits = [s.strip() for s in parm_string.rsplit('@', maxsplit=1)]
         if len(splits) != 2:
-            raise ValueError(f'IMAGE {parm_string} cannot be parsed.')
-        skycoord = SkyCoord(splits[1], unit=(u.hourangle, u.deg))
+            raise ValueError(f'COLOR {parm_string} cannot be parsed.')
+        target_and_exposure = splits[0]
+        radec_and_rotator = splits[1]
 
         # Extract target name and exposure factor:
-        splits = [s.strip() for s in splits[0].split(maxsplit=1)]
+        splits = [s.strip() for s in target_and_exposure.split(maxsplit=1)]
         if len(splits) != 2:
-            raise ValueError(f'IMAGE {parm_string} cannot be parsed.')
+            raise ValueError(f'COLOR {parm_string} cannot be parsed.')
         target_name = splits[0]
-        exposure_factor = float(splits[1].replace('x', ''))
-        return target_name, exposure_factor, skycoord
+        exposure_factor = float(splits[1].upper().replace('X', ''))
+
+        # Extract RA,Dec, and rotator angle if present:
+        splits = [s.strip() for s in radec_and_rotator.split('/ROT')]
+        skycoord = SkyCoord(splits[0], unit=(u.hourangle, u.deg))
+        rotator_angle_string = splits[1] if len(splits) == 2 else None
+        return target_name, exposure_factor, skycoord, rotator_angle_string
 
     @staticmethod
     def make_color_exposures(exposure_factor: float, template: tuple) -> List[Exposure]:
@@ -865,8 +914,9 @@ class ColorSeries(ActionDirective):
         logging.debug(f'{start_time}       ColorSeries: Quitat={self.quitat_time}.')
         n_exposures_completed, exit_time = \
             ImageSeries.do_exposures(start_time, self.equip, self.skycoord,
-                                     self.exposures, self.quitat_time,
-                                     self.afinterval_object)
+                                     self.rotator_angle_string,
+                                     self.exposures,
+                                     self.quitat_time, self.afinterval_object)
         n_exposures_requested = sum([exp.count for exp in self.exposures])
         if n_exposures_completed == n_exposures_requested:
             self.count_completed_this_plan += 1
@@ -885,7 +935,12 @@ class ColorSeries(ActionDirective):
 
     def summary_content_string(self) -> str:
         """ Returns content string for summary file line. """
-        return f'Color {" ".join(self.parm_string.split())}'
+        summary_content_string = f'Color {" ".join(self.parm_string.split())}'
+        summary_content_string = \
+            summary_content_string.rsplit('/ROT', maxsplit=1)[0].rstrip()
+        if self.equip.has_rotator:
+            summary_content_string += f' rot:{self.equip.rotator_angle}\N{DEGREE SIGN}'
+        return summary_content_string
 
     @property
     def n_completed(self) -> int:
@@ -1147,10 +1202,21 @@ class Plan:
                f'with {len(self.action_directives)} action directives.'
 
 
-def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -> None:
-    """ Master function of this module, calling other subsidiary functions. """
+def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str,
+                 default_rotation_degrees: float | str = None) -> None:
+    """ Master function of this module, calling other subsidiary functions.
+        default_rotation_degrees is camera-counterclockwise (0-360).
+        Number required if rotator present; enter None if no rotator, in order
+        to disable all rotator functionality.
+    """
+    logging.basicConfig(level=logging.DEBUG)
+
     site_fullpath = os.path.join(INI_DIRECTORY, site_name + '.ini')
     site = Site(site_fullpath)
+    has_rotator = (default_rotation_degrees is not None)
+    default_rotation_degrees_string = \
+        str(default_rotation_degrees) if has_rotator else None
+    equip = Equipment(site, has_rotator, default_rotation_degrees_string)
     an_date_str = str(an_date)
     an = Astronight(site, an_date_str)
 
@@ -1160,12 +1226,14 @@ def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str) -
     if raw_string_list[0] != an_date_str:
         raise MismatchedDateError(f'Excel=\'{raw_string_list[0]}\', '
                                   f'make_an_plan()=\'{an_date_str}\'')
-    plan_list = make_plan_list(raw_string_list, site)
-    write_acp_plan_files(plans_top_directory, plan_list, an)
+    plan_list = make_plan_list(raw_string_list, site, equip)
+    write_acp_plan_files(plans_top_directory, plan_list, an,
+                         has_rotator, default_rotation_degrees_string)
 
     plan_dict = simulate_plans(an, plan_list)
     plan_dict = make_warning_and_error_lines(plan_dict, an, min_moon_dist=45)
-    summary_lines = make_summary_lines(plan_dict, an)
+    summary_lines = make_summary_lines(plan_dict, an,
+                                       has_rotator, default_rotation_degrees)
     write_summary_to_file(plans_top_directory=plans_top_directory,
                           an_string=an.an_date.an_str,
                           lines=summary_lines)
@@ -1195,12 +1263,14 @@ def parse_excel(excel_fullpath: str) -> List[str]:
     return raw_string_list
 
 
-def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
+def make_plan_list(raw_string_list: List[str], site: Site, equip: Equipment) \
+        -> List[Plan]:
     """
     Converts raw directive list (strings from Excel file) to list of Plan objects,
         ready for construction of ACP plans.
     :param raw_string_list: ... [list of strs]
     :param site: a Site object for location of observations [Site object]
+    :param equip: an Equipment object for tracking equipment state. [Equipment object]
     :return: list of Plan objects, astronight object (2-tuple)
 
     ----- The Astronight date e.g. '20221129' MUST be the first cell in the Excel file.
@@ -1237,24 +1307,28 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
     WAITUNTIL time_utc or sun_altitude
         Wait to start first set. If sun_altitude, must be negative.
         *** Examples:  WAITUNTIL 02:34  -or-  WAITUNTIL -2
-    IMAGE  target_name  filter_mag_or_sec_string  RA  Dec  ;  comment
+    IMAGE  target_name  filter_mag_or_sec_string @ RA  Dec /ROT 23.4 ;  comment
         For general imaging, with exposure in seconds or calculated from magnitudes.
-        *** Exposure example:  "IMAGE target_name V=120s B=240s(2) 12:00:00 +23:34:45"
+        *** Exposure example:
+            "IMAGE target_name V=120s B=240s(2) @ 12:00:00 +23:34:45 /ROT 22.3"
                 To image target_name in V filter one time at 120 seconds, then
                 in B filter twice at 240 seconds.
-        *** Magnitudes example: "IMAGE New target V=12 B=12.5(2) 12:00:00 +23:34:45"
+                Rotator angle 22.3(counter-clockwise).
+        *** Magnitudes example:
+            "IMAGE New target V=12 B=12.5(2) @ 12:00:00 +23:34:45 /ROT 340.9"
                 To image target_name in V filter one time targeting V mag 12, then
                 in B filter twice targeting B mag 12.5. (exposure times are NOT
                 checked or limited, so be careful!)
-    COLOR  target_name  multiplier  RA  Dec  ;  comment
+                Rotator angle 340.9 (counter-clockwise).
+    COLOR  target_name  multiplier @ RA  Dec /ROT 22.6 ;  comment
         For MP color imaging, using a pre-defined color-imaging sequence defined by
         COLOR_SEQUENCE_AT_V14 at top of this module, and by the directive's "x" value
             which multiples all pre-defined exposure times by its value (default=1,
             but explicit inclusion is highly recommended).
-        *** Example: "COLOR MP_1626 2.1x 21:55:08 +24:24:45"
+        *** Example: "COLOR MP_1626 2.1x @ 21:55:08 +24:24:45 /ROT 333.1"
                 Expose target MP_1626 color sequence, with each exposure time
                 in COLOR_SEQUENCE_AT_V14 multipled by 2.1 (target likely fainter than
-                V mag = 14).
+                V mag = 14). Rotator angle 333.1 (counter-clockwise).
     ; comment
         A comment-only directive. Will be copied into ACP plans and summary.
     AUTOFOCUS  ;  comment
@@ -1275,7 +1349,6 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
         raise ValueError(f'AN date {an_date_str} is not within range '
                          f'{EARLIEST_AN_DATE_INT} to {latest_an_date_int} as required.')
     an = Astronight(site, an_date_str)
-    equip = Equipment(site)
 
     plan_list = []
     this_plan = None
@@ -1375,7 +1448,8 @@ def make_plan_list(raw_string_list: List[str], site: Site) -> List[Plan]:
 
 
 def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
-                         an: Astronight) -> None:
+                         an: Astronight, has_rotator: bool,
+                         rotator_angle_string: str | None) -> None:
     """ Make and write ACP plan files for this Astronight. """
     print()
     for this_plan in plan_list:
@@ -1384,6 +1458,11 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                       f';    as generated {Time.now().strftime("%Y-%m-%d %H:%M")} UTC '
                       f' by photrix2023'])
         lines.extend(an.acp_header_string)
+        if has_rotator:
+            lines.append(f'Default rotator angle = '
+                         f'{rotator_angle_string}\N{DEGREE SIGN}')
+        else:
+            lines.append('(No rotator.)')
         lines.append(';')
         if this_plan.quitat_object is not None:
             time_str = this_plan.quitat_object.quitat_time.strftime("%m/%d/%Y %H:%M")
@@ -1445,18 +1524,28 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
 
 def _make_imaging_acp_plan_lines(a_dir: ImageSeries | ColorSeries, type_string: str) \
         -> List[str]:
+    if a_dir.equip.has_rotator:
+        if a_dir.rotator_angle_string is not None:
+            rotator_string = f'#POSANG {a_dir.rotator_angle_string}'
+        else:
+            rotator_string = f'#POSANG {a_dir.equip.default_rotation_degrees_string}'
+    else:
+        rotator_string = None
     filter_list = [exp.filter for exp in a_dir.exposures]
     count_list = [exp.count for exp in a_dir.exposures]
     seconds_list = [exp.seconds for exp in a_dir.exposures]
     skycoord = a_dir.skycoord
     ra_string = (skycoord.ra/15).to_string(sep=':', precision=3, pad=True)  # RA hours.
     dec_string = skycoord.dec.to_string(sep=':', precision=2, alwayssign=True, pad=True)
-    return [';', '#DITHER 0',
-            f'#FILTER {",".join([f for f in filter_list])}',
-            f'#BINNING {",".join(len(filter_list) * ["1"])}',
-            f'#COUNT {",".join([str(c) for c in count_list])}',
-            f'#INTERVAL {",".join([str(s) for s in seconds_list])}',
-            f'{a_dir.target_name}\t{ra_string}\t{dec_string} ; {type_string}', ';']
+    lines = [';',
+             rotator_string,
+             '#DITHER 0',
+             f'#FILTER {",".join([f for f in filter_list])}',
+             f'#BINNING {",".join(len(filter_list) * ["1"])}',
+             f'#COUNT {",".join([str(c) for c in count_list])}',
+             f'#INTERVAL {",".join([str(s) for s in seconds_list])}',
+             f'{a_dir.target_name}\t{ra_string}\t{dec_string} ; {type_string}', ';']
+    return [line for line in lines if line is not None]
 
 
 def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
@@ -1509,7 +1598,7 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
                         if i_set == 1:
                             start_time = sim_time
                             completed, exit_time = adsi.adir.perform(start_time)
-                            adsi.time = start_time
+                            # adsi.time = start_time
                             adsi.content = adsi.adir.summary_content_string()
                             sim_time = exit_time  # update sim time.
                     case ImageSeries() | ColorSeries():
@@ -1704,7 +1793,8 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
     return plan_dict
 
 
-def make_summary_lines(plan_dict: OrderedDict, an: Astronight) -> List[str]:
+def make_summary_lines(plan_dict: OrderedDict, an: Astronight, has_rotator: bool,
+                       rotator_angle_string: str | None) -> List[str]:
     """ Takes plans dict {plan name: {'plan': Plan object, 'adsi_list': adsi_list}}
         and returns list of strings comprising new summary (ready to write to file).
     """
@@ -1716,6 +1806,11 @@ def make_summary_lines(plan_dict: OrderedDict, an: Astronight) -> List[str]:
     header_lines.append(f'     as generated by photrix2023   '
                         f'{Time.now().iso.rsplit(":", maxsplit=1)[0]} UTC')
     header_lines.extend(an.acp_header_string)
+    if has_rotator:
+        header_lines.append(f'Default rotator angle = '
+                            f'{rotator_angle_string}\N{DEGREE SIGN}')
+    else:
+        header_lines.append('(No rotator.)')
 
     # Plan loop:
     all_summary_lines = header_lines

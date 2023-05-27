@@ -110,7 +110,7 @@ def make_lc_an_roster(an_date: str | int,
                       min_hours: float = DEFAULT_MIN_HOURS_OBSERVABLE,
                       max_vmag: float = DEFAULT_MAX_V_MAGNITUDE) -> None:
     """ Main LIGHTCURVE planning function for MP photometry.
-    :param an_date: Astronight date, e.g. 20200201 or '20200201 [str or int]
+    :param an_date: Astronight date, e.g. '20200201' or 20200201 [str or int]
     :param site_name: name of site for Site object. [string]
     :param mpfile_directory: location of MPfiles on which to build roster. [str]
     :param min_moon_dist: min dist from min (degrees) to consider MP observable. [float]
@@ -208,7 +208,7 @@ def make_lc_an_roster(an_date: str | int,
     text_file_fullpath = os.path.join(text_file_directory, text_filename)
     with open(text_file_fullpath, 'w') as this_file:
         this_file.write('\n'.join(roster_header))
-        this_file.write('\n'.join(table_header))
+        this_file.write('\n' + '\n'.join(table_header))
         this_file.write('\n' + '\n'.join(table_lines))
         if len(too_late_lines) >= 1:
             this_file.write('\n\n' + '\n'.join(too_late_lines))
@@ -324,7 +324,7 @@ def make_df_an_table(an: Astronight,
                    'EphEndUTC': mpfile.eph_range[1],
                    'EphemerisOK': ephemeris_ok,
                    'TooLate': (not ephemeris_ok) and
-                        (an.sun_antitransit_utc > mpfile.eph_range[1]),
+                              (an.sun_antitransit_utc > mpfile.eph_range[1]),
                    'PrevObsRanges': len(mpfile.obs_jd_ranges)}
 
         # If no ephemeris data were available, we're finished with this MP and its row:
@@ -731,7 +731,7 @@ def calc_phase_coverage(period: float, obs_jd_ranges: List[Tuple[float, float]],
         current apparition), across one period, to judge which phases have sufficient
         coverage and which need more. Phase zero = the first JD in obs_jd_ranges. """
     jd_period_start = obs_jd_ranges[0][0] if len(obs_jd_ranges) >= 1 \
-        else Time.now().jd # if no coverage, start JD doesn't matter.
+        else Time.now().jd  # if no coverage, start JD doesn't matter.
     one_period_jd_range = (jd_period_start, jd_period_start + period / 24)
     resolution_minutes = period * 60 / n_cells
     df_phase_coverage = _make_df_coverage(period, obs_jd_ranges, one_period_jd_range,

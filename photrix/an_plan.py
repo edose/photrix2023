@@ -62,8 +62,17 @@ ROTATOR_DEGREES_PER_SECOND = 2
 
 WAITUNTIL_MAX_WAITING_TIME = 12 * 3600  # 12 hours.
 
-COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1), ('SG', 200, 1), ('SI', 180, 1),
-                         ('SR', 90, 1), ('SI', 180, 1), ('SG', 200, 1),
+# COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1), ('SG', 200, 1), ('SI', 180, 1),
+#                          ('SR', 90, 1), ('SI', 180, 1), ('SG', 200, 1),
+#                          ('SR', 90, 1))
+
+COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1),
+                         ('SG', 200, 1), ('SI', 180, 1),
+                         ('SG', 200, 1), ('SI', 180, 1),
+                         ('SR', 90, 1),
+                         ('SR', 90, 1),
+                         ('SI', 180, 1), ('SG', 200, 1),
+                         ('SI', 180, 1), ('SG', 200, 1),
                          ('SR', 90, 1))
 
 TimeCursor_type: TypeAlias = 'TimeCursor'
@@ -586,6 +595,70 @@ class Comment(ActionDirective):
 
     def __str__(self) -> str:
         return f'Comment object: \'{self.comment_text}\''
+
+
+class Pointing(ActionDirective):
+    """ Represents a POINTING directive; merely adds #POINTING line to ACP plan and
+        to summary file; no timing effect for now."""
+    def __init__(self, comment: str):
+        self.comment = comment
+        self.count_completed_this_plan = 0
+
+    def perform(self, start_time: Time) -> Tuple[bool, Time]:
+        """ This is a zero-duration directive. """
+        self.count_completed_this_plan += 1
+        exit_time = start_time
+        return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'POINTING (next target only)'
+
+    @property
+    def n_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return self.count_completed_this_plan
+
+    @property
+    def n_partially_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return 0
+
+    def __str__(self) -> str:
+        return f'Pointing object.'
+
+
+class Nopointing(ActionDirective):
+    """ Represents a NOPOINTING directive; merely adds #NOPOINTING line to ACP plan and
+        to summary file; no timing effect for now. (rarely used)"""
+    def __init__(self, comment: str):
+        self.comment = comment
+        self.count_completed_this_plan = 0
+
+    def perform(self, start_time: Time) -> Tuple[bool, Time]:
+        """ This is a zero-duration directive. """
+        self.count_completed_this_plan += 1
+        exit_time = start_time
+        return True, exit_time
+
+    @staticmethod
+    def summary_content_string() -> str:
+        """ Returns content string for summary file line. """
+        return f'NOPOINTING (next target only)'
+
+    @property
+    def n_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return self.count_completed_this_plan
+
+    @property
+    def n_partially_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return 0
+
+    def __str__(self) -> str:
+        return f'Nopointing object.'
 
 
 class Waituntil(ActionDirective):
@@ -1209,7 +1282,8 @@ def make_an_plan(plans_top_directory: str, an_date: str | int, site_name: str,
         Number required if rotator present; enter None if no rotator, in order
         to disable all rotator functionality.
     """
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.WARNING)
 
     site_fullpath = os.path.join(INI_DIRECTORY, site_name + '.ini')
     site = Site(site_fullpath)
@@ -1397,8 +1471,13 @@ def make_plan_list(raw_string_list: List[str], site: Site, equip: Equipment) \
                 this_plan.quitat_object = Quitat(parm_string, comment, an)
             case 'chain':
                 this_plan.chain_object = Chain(parm_string, comment, an.an_date.an_str)
+
             case 'comment':
                 pass  # should not reach here...comments are handled above in loop.
+            case 'pointing':
+                this_plan.append(Pointing(comment))
+            case 'nopointing':
+                this_plan.append(Nopointing(comment))
             case 'waituntil':
                 this_plan.append(Waituntil(parm_string, comment, an))
             case 'image':
@@ -1459,10 +1538,10 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                       f' by photrix2023'])
         lines.extend(an.acp_header_string)
         if has_rotator:
-            lines.append(f'Default rotator angle = '
+            lines.append(f'; Default rotator angle = '
                          f'{rotator_angle_string}\N{DEGREE SIGN}')
         else:
-            lines.append('(No rotator.)')
+            lines.append('; (No rotator.)')
         lines.append(';')
         if this_plan.quitat_object is not None:
             time_str = this_plan.quitat_object.quitat_time.strftime("%m/%d/%Y %H:%M")
@@ -1477,6 +1556,10 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
             match a_dir:
                 case Comment():
                     lines.append(f';{a_dir.comment_text}')
+                case Pointing():
+                    lines.extend([';', '#POINTING ; next target only.'])
+                case Nopointing():
+                    lines.extend([';', '#NOPOINTING ; next target only.'])
                 case Waituntil():
                     if a_dir.parm_type == 'UTC':
                         time_str = a_dir.waituntil_time.strftime("%m/%d/%Y %H:%M")
@@ -1500,7 +1583,7 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                 case Shutdown():
                     lines.append(f'#SHUTDOWN')
 
-        if this_plan.afinterval_object is not None:
+        if this_plan.chain_object is not None:
             lines.extend([';', f'#CHAIN {this_plan.chain_object.target_filename}'])
 
         # Remove consecutive blank comment lines:
@@ -1615,7 +1698,8 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
                         else:
                             adsi.min_alt = min(start_alt, exit_alt, adsi.min_alt)
                         sim_time = exit_time  # update sim time.
-                    case Chill() | Autofocus() | Domeopen() | Domeclose() | Shutdown():
+                    case Chill() | Autofocus() | Domeopen() | Domeclose() | Shutdown() \
+                            | Pointing() | Nopointing():
                         start_time = sim_time
                         completed, exit_time = adsi.adir.perform(start_time)
                         if i_set == 1:
@@ -1676,8 +1760,8 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
 
 def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
                                  min_moon_dist: float = 45) -> OrderedDict:
-    """ Check ActionDirectives for warning or error conditions, add to summary lines
-        where appropriate. """
+    """ Check ActionDirectives for warning or error conditions,
+        add to summary lines where appropriate. """
 
     # Warning: Target RA,Dec differs from RA,Dec of target's first directive:
     # TODO, long-term: Excel gives each targets' RA,Dec one time only, at very top.
@@ -1763,6 +1847,13 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
                         f'{int(round(moon_dist))}\N{DEGREE SIGN} < '
                         f'min dist={int(round(min_moon_dist))}\N{DEGREE SIGN}.')
 
+    # Warning: Plan has no #CHAIN but is not the last plan:
+    for value in list(plan_dict.values())[:-1]:
+        plan = value['plan']
+        if plan.chain_object is None:
+            plan.warning_error_lines.append(
+                '***** WARNING: Plan has no #CHAIN to next plan.')
+
     # ERROR: Plan chains to itself:
     for value in list(plan_dict.values()):
         plan = value['plan']
@@ -1770,7 +1861,7 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
             if plan.chain_object.parm_string.lower() == plan.name.lower():
                 plan.warning_error_lines.append('***** ERROR: Plan chains to itself.')
 
-    # NOTE (not an error or warning): Add Az,Alt for first imaging target:
+    # NOTE (not an error or warning): Display azimuth for first imaging target:
     first_imaging_adsi = None
     for value in list(plan_dict.values()):
         adsi_list = value['adsi_list']

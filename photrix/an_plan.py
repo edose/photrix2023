@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import OrderedDict
 import logging
+from functools import lru_cache
 
 # External packages:
 import pandas as pd
@@ -40,40 +41,49 @@ PLAN_START_DURATION = 5
 SET_START_DURATION = 5
 QUITAT_DURATION = 1
 CHAIN_DURATION = 5
-AUTOFOCUS_DURATION = 180
-GUIDER_START_DURATION = 20
-GUIDER_RESUME_DURATION = 6
+# Next 2 lines: Temporary kludge for no AC4040M guiding possible 2023-05-28.
+AUTOFOCUS_DURATION = 120    #  CDK20: shorter than C14, rarely used too.
+GUIDER_START_DURATION = 1  #  CDK20: need guider?
+GUIDER_RESUME_DURATION = 1  #  "
+# GUIDER_START_DURATION = 20  #  CDK20: need guider?
+# GUIDER_RESUME_DURATION = 6  #  "
 POST_IMAGE_DURATION = 20  # download, make FITS, plate solve.
-FILTER_CHANGE_DURATION = 10  # average.
+FILTER_CHANGE_DURATION = 5  # average.
 SCOPE_SLEW_RATE = 20  # degrees/sec, each axis.
 SCOPE_SLEW_OVERHEAD_DURATION = 4  # seconds, for accel/decel/settling.
 DOME_HOME_AZIMUTH = 3  # degrees
 DOME_SLEW_DURATION_PER_DEGREE = 1.0 / 3.0  # seconds per degree, either direction.
-DOME_SHUTTER_DURATION = 120  # full open, full close, when already at home position.
+DOME_SHUTTER_DURATION = 180  # full open, or full close when already at home position.
 CAMERA_AMBIENT_TEMP = 15.0  # presumed camera temperature on power-up.
-CAMERA_CHILL_DURATION = 180  # camera, from ambient temperature to imaging temperature.
+CAMERA_CHILL_DURATION = 240  # camera, from ambient temperature to imaging temperature.
 CAMERA_TEMP_MONITOR_DURATION = 6  # if camera already at chill temperature.
-CAMERA_TEMP_TOLERANCE_DEFAULT = 2  # degrees C
+CAMERA_TEMP_TOLERANCE_DEFAULT = 1  # degrees C
 CAMERA_TEMP_ON_WARMING = 6.0
-SHUTDOWN_DURATION = 300
-MIN_COLOR_EXPOSURE_DURATION = 90
-MAX_COLOR_EXPOSURE_DURATION = 900
+SHUTDOWN_DURATION = 480
+# MIN_COLOR_EXPOSURE_DURATION = 36
+# MAX_COLOR_EXPOSURE_DURATION = 480
 ROTATOR_DEGREES_PER_SECOND = 2
-
 WAITUNTIL_MAX_WAITING_TIME = 12 * 3600  # 12 hours.
 
-# COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1), ('SG', 200, 1), ('SI', 180, 1),
-#                          ('SR', 90, 1), ('SI', 180, 1), ('SG', 200, 1),
-#                          ('SR', 90, 1))
 
-COLOR_SEQUENCE_AT_V14 = (('SR', 90, 1),
-                         ('SG', 200, 1), ('SI', 180, 1),
-                         ('SG', 200, 1), ('SI', 180, 1),
-                         ('SR', 90, 1),
-                         ('SR', 90, 1),
-                         ('SI', 180, 1), ('SG', 200, 1),
-                         ('SI', 180, 1), ('SG', 200, 1),
-                         ('SR', 90, 1))
+# Specific to AC4040M camera operation:
+LEGAL_READOUTMODE_NAMES = ('HDR', 'High Gain', 'Low Gain', 'High Gain StackPro')
+LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS = \
+    (480, 420, 360, 300, 240, 180, 120, 90, 72, 48, 36)  # Set to None to deactivate.
+MIN_COLOR_EXPOSURE_DURATION = min(LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS)
+MAX_COLOR_EXPOSURE_DURATION = max(LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS)
+
+
+# For CDK20/AC4040M rig (using 1/2 the exp. times of old C14/6303E rig).
+# TODO: Update std color exp times after adequate S/N ratios have been verified.
+COLOR_SEQUENCE_AT_V14 = (('SR', 45, 1),
+                         ('SG', 100, 1), ('SI', 90, 1),
+                         ('SG', 100, 1), ('SI', 90, 1),
+                         ('SR', 45, 1),
+                         ('SR', 45, 1),
+                         ('SI', 90, 1), ('SG', 100, 1),
+                         ('SI', 90, 1), ('SG', 100, 1),
+                         ('SR', 45, 1))
 
 TimeCursor_type: TypeAlias = 'TimeCursor'
 
@@ -123,6 +133,7 @@ class Equipment:
         self.scope_skycoord = None  # must compute when unparking, using that time.
         self.dome = DomeState.CLOSED
         self.dome_azimuth_degrees = DOME_HOME_AZIMUTH
+        self.camera_readout_mode = 'HDR'  # default on power-up.
         self.camera_temp_c = CAMERA_AMBIENT_TEMP
         self.current_filter = None  # unknown; assume filter a change on first request.
         self.has_rotator = has_rotator
@@ -597,6 +608,41 @@ class Comment(ActionDirective):
         return f'Comment object: \'{self.comment_text}\''
 
 
+class Readoutmode(ActionDirective):
+    """ Represents a READOUTMODE directive; merely adds #READOUTMODE line (with mode
+    name) to ACP plan and to summary file; no timing effect for now."""
+    def __init__(self, mode_name: str, equip: Equipment, comment: str):
+        self.comment = comment
+        self.equip = equip
+        if not (mode_name in LEGAL_READOUTMODE_NAMES):
+            raise ValueError(f'Readoutmode \'{mode_name}\' is not a legal mode name.')
+        self.mode_name = mode_name
+        self.count_completed_this_plan = 0
+
+    def perform(self, start_time: Time) -> Tuple[bool, Time]:
+        """ This is a zero-duration directive. """
+        self.count_completed_this_plan += 1
+        exit_time = start_time
+        return True, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'READOUTMODE = {self.mode_name}'
+
+    @property
+    def n_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return self.count_completed_this_plan
+
+    @property
+    def n_partially_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return 0
+
+    def __str__(self) -> str:
+        return f'Readoutmode object, mode={self.mode_name}.'
+
+
 class Pointing(ActionDirective):
     """ Represents a POINTING directive; merely adds #POINTING line to ACP plan and
         to summary file; no timing effect for now."""
@@ -792,7 +838,13 @@ class ImageSeries(ActionDirective):
                 raise ValueError(f'\'{exp}\' in an IMAGE directive cannot be parsed.')
             filter_name = splits[0]
             splits = [s.strip() for s in splits[1].split('(')]
-            seconds = int(splits[0].replace('s', ''))
+            raw_seconds = float(splits[0].replace('s', ''))
+            if LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS is not None:
+                seconds = int(best_legal_exposure(raw_seconds,
+                                                  LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS))
+            else:
+                seconds = int(raw_seconds)
+            # seconds = int(splits[0].replace('s', ''))
             if len(splits) == 2:
                 count = int(splits[1].replace(')', ''))
             else:
@@ -829,7 +881,10 @@ class ImageSeries(ActionDirective):
 
     def summary_content_string(self) -> str:
         """ Returns content string for summary file line. """
-        summary_content_string = f'Image {" ".join(self.parm_string.split())}'
+        summary_content_string = f'Image {self.target_name}'
+        for exp in self.exposures:
+            summary_content_string += f' {exp.filter}={exp.seconds}s({exp.count})'
+        summary_content_string += f' @ {self.parm_string.rsplit("@")[1].strip()}'
         summary_content_string = \
             summary_content_string.rsplit('/ROT', maxsplit=1)[0].rstrip()
         if self.equip.has_rotator:
@@ -974,6 +1029,12 @@ class ColorSeries(ActionDirective):
             this_seconds = int(round(max(min(t_seconds * exposure_factor,
                                              MAX_COLOR_EXPOSURE_DURATION),
                                          MIN_COLOR_EXPOSURE_DURATION)))
+            if LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS is not None:
+                legal_color_exposures = \
+                    [exp for exp in LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS if
+                     MIN_COLOR_EXPOSURE_DURATION <= exp <= MAX_COLOR_EXPOSURE_DURATION]
+                this_seconds = int(best_legal_exposure(this_seconds,
+                                                       tuple(legal_color_exposures)))
             exposures.append(Exposure(filter=t_filter,
                                       seconds=this_seconds,
                                       count=t_count))
@@ -1008,7 +1069,10 @@ class ColorSeries(ActionDirective):
 
     def summary_content_string(self) -> str:
         """ Returns content string for summary file line. """
-        summary_content_string = f'Color {" ".join(self.parm_string.split())}'
+        summary_content_string = f'Image {self.target_name}'
+        for exp in self.exposures:
+            summary_content_string += f' {exp.filter}={exp.seconds}s({exp.count})'
+        summary_content_string += f' @ {self.parm_string.rsplit("@")[1].strip()}'
         summary_content_string = \
             summary_content_string.rsplit('/ROT', maxsplit=1)[0].rstrip()
         if self.equip.has_rotator:
@@ -1326,7 +1390,7 @@ def parse_excel(excel_fullpath: str) -> List[str]:
     df = pd.read_excel(excel_fullpath, header=None).\
         dropna(axis=0, how='all').dropna(axis=1, how='all')
     nrow, ncol = df.shape
-    raw_string_list = []  # strs from excel, read right-to-left, then top-to-bottom.
+    raw_string_list = []  # strs from Excel, read right-to-left, then top-to-bottom.
     for irow in range(nrow):
         for icol in range(ncol):
             cell = df.iloc[irow, icol]
@@ -1474,6 +1538,8 @@ def make_plan_list(raw_string_list: List[str], site: Site, equip: Equipment) \
 
             case 'comment':
                 pass  # should not reach here...comments are handled above in loop.
+            case 'readoutmode':
+                this_plan.append(Readoutmode(parm_string, equip, comment))
             case 'pointing':
                 this_plan.append(Pointing(comment))
             case 'nopointing':
@@ -1556,6 +1622,8 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
             match a_dir:
                 case Comment():
                     lines.append(f';{a_dir.comment_text}')
+                case Readoutmode():
+                    lines.append(f'#READOUTMODE {a_dir.mode_name}')
                 case Pointing():
                     lines.extend([';', '#POINTING ; next target only.'])
                 case Nopointing():
@@ -1698,8 +1766,8 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
                         else:
                             adsi.min_alt = min(start_alt, exit_alt, adsi.min_alt)
                         sim_time = exit_time  # update sim time.
-                    case Chill() | Autofocus() | Domeopen() | Domeclose() | Shutdown() \
-                            | Pointing() | Nopointing():
+                    case Chill() | Autofocus() | Domeopen() | Domeclose() |\
+                        Shutdown() | Readoutmode() | Pointing() | Nopointing():
                         start_time = sim_time
                         completed, exit_time = adsi.adir.perform(start_time)
                         if i_set == 1:
@@ -1824,6 +1892,10 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
             if any([isinstance(adsi.adir, Autofocus) for adsi in adsi_list]):
                 plan.warning_error_lines.append(
                     '***** WARNING: Plan has both Afinterval and Autofocus.')
+
+    # Warning: First plan has no Readoutmode before first exposure:
+    # TODO: Add the warning here.
+    pass
 
     # Warning: Plan has SETS > 1 and Autofocus:
     for value in list(plan_dict.values()):
@@ -1971,3 +2043,24 @@ def make_one_summary_line(status: str = '', time: Time | None = None,
     alt_string = '' if alt is None else f'{int(float(alt)):3d}'
     line = f'{status:>8} {time_string:>4} {alt_string:>3} {content}'
     return line
+
+
+@lru_cache
+def best_legal_exposure(given_exposure: float,
+                        legal_exposures: Tuple = LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS):
+    """ Find nearest exposure time given a tuple of given exposure times. """
+    exp_list = list(legal_exposures)
+    exp_list.sort()
+    # Return end value if given exposure is outside legal range:
+    if given_exposure < exp_list[0]:
+        return exp_list[0]
+    if given_exposure > exp_list[-1]:
+        return exp_list[-1]
+    # Return given exposure if it is already legal:
+    for legal in exp_list:
+        if given_exposure == legal:
+            return given_exposure
+    # Return nearest legal value:
+    distances = [abs(legal - given_exposure) for legal in exp_list]
+    index = distances.index(min(distances))
+    return exp_list[index]

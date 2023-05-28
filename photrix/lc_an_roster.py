@@ -57,14 +57,19 @@ DEFAULT_MIN_HOURS_OBSERVABLE = 2  # if less than this, MP is not included in pla
 # DSNM = ('251.10288d', '31.748657576406853d', '1372m')
 # NSM_DOME = ('254.471022d', '32.903156d', '2180m')
 # next is: (v_mag, Clear-filter exp_time/sec), for photometry only. Targets S/N >~200.
-NOMINAL_PHOTOMETRY_EXP_TIME_CLEAR = [(13, 90), (14, 150), (15, 300),
-                                     (16, 600), (17, 870), (17.5, 900)]
-NOMINAL_PHOTOMETRY_EXP_TIME_BB = [(13, 90), (14, 165), (15, 330),
-                                  (16, 660), (17, 900), (17.5, 900)]
+# NOMINAL_PHOTOMETRY_EXP_TIME_CLEAR = [(13, 90), (14, 150), (15, 300),
+#                                      (16, 600), (17, 870), (17.5, 900)]
+# NOMINAL_PHOTOMETRY_EXP_TIME_BB = [(13, 90), (14, 165), (15, 330),
+#                                   (16, 660), (17, 900), (17.5, 900)]
+
+# GG495 (for CDK 20) targets S/N~300.
+MAIN_PHOTOMETRY_FILTER = "GG495"
+NOMINAL_PHOTOMETRY_EXP_TIME_GG495 = [(13, 36), (14, 45), (15, 110),
+                                     (16, 275), (17, 480), (17.5, 480)]
 EXP_OVERHEAD = 24  # Nominal exposure overhead, in seconds.
 COV_RESOLUTION_MINUTES = 5  # min. coverage plot resolution, in minutes.
 DEFAULT_MAX_V_MAGNITUDE = 18.4  # ensure that too-faint MPs don't get into planning.
-MAX_EXP_TIME_NO_GUIDING = 119
+MAX_EXP_TIME_NO_GUIDING = 179
 
 MPFILE_DIRECTORY = 'C:/Dev/Photometry/MPfile'
 MP_LIGHTCURVE_DIRECTORY = 'C:/Astro/MP Photometry'
@@ -346,7 +351,7 @@ def make_df_an_table(an: Astronight,
         an_dict['PhaseAngle'] = eph['Phase']
         an_dict['V_mag'] = eph['V_mag']
         an_dict['ExpTime'] = float(round(float(
-            calc_exp_time(an_dict['V_mag'], NOMINAL_PHOTOMETRY_EXP_TIME_BB))))
+            calc_exp_time(an_dict['V_mag'], NOMINAL_PHOTOMETRY_EXP_TIME_GG495))))
         # Duty cycle is % of time spent observing MP for one exposure
         # per each 1/60 of period.
         an_dict['DutyCyclePct'] = 100.0 * ((an_dict['ExpTime'] + EXP_OVERHEAD)
@@ -355,7 +360,7 @@ def make_df_an_table(an: Astronight,
         an_dict['MotionRate'] = eph['MotionRate']
         an_dict['PhotrixPlanning'] = \
             f'IMAGE MP_{an_dict["MPnumber"]} ' \
-            f'BB={round(float(an_dict["ExpTime"]))}s(*) ' \
+            f'{MAIN_PHOTOMETRY_FILTER}={round(float(an_dict["ExpTime"]))}s(*) ' \
             f'@ '\
             f'{ra_as_hours(an_dict["RA"], seconds_decimal_places=1)} ' \
             f'{degrees_as_hex(an_dict["Dec"], arcseconds_decimal_places=0)}'

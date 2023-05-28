@@ -881,3 +881,19 @@ def test_make_summary_lines():
     # with open(output_fullpath, 'w') as f:
     #     for line in summary_lines:
     #         f.write(f'{line}\n')
+
+def test_best_legal_exposure():
+    legal_exposures = (480, 420, 360, 72, 120)
+    fn = photrix.an_plan.best_legal_exposure
+    assert fn(1, legal_exposures) == 72
+    assert fn(71, legal_exposures) == 72
+    assert fn(72, legal_exposures) == 72
+    assert fn(73, legal_exposures) == 72
+    assert fn(73, legal_exposures) == 72  # exercise cache hit
+    assert fn(96, legal_exposures) == 72
+    assert fn(120, legal_exposures) == 120
+    assert fn(449, legal_exposures) == 420
+    assert fn(451, legal_exposures) == 480
+    assert fn(479, legal_exposures) == 480
+    assert fn(480, legal_exposures) == 480
+    assert fn(500, legal_exposures) == 480

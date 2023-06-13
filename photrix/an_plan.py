@@ -643,6 +643,47 @@ class Readoutmode(ActionDirective):
         return f'Readoutmode object, mode={self.mode_name}.'
 
 
+class Subframe(ActionDirective):
+    """ Represents a SUBFRAME directive; merely adds #SUBFRAME line (with fraction
+        string) to ACP plan and to summary file; no timing effect."""
+    def __init__(self, fraction: str, equip: Equipment, comment: str):
+        self.comment = comment
+        self.equip = equip
+        try:
+            fraction_float = float(fraction)
+        except (ValueError, TypeError):
+            raise ValueError(f'Subframe.init() cannot interpret '
+                             f'subframe fraction string \'{fraction}\'')
+        if not (0.1 <= fraction_float <= 1.0):
+            raise ValueError(f'Subframe \'{fraction}\' '
+                             f'must be between 0.1 and 1.0 but is not.')
+        self.fraction = fraction
+        self.count_completed_this_plan = 0
+
+    def perform(self, start_time: Time) -> Tuple[bool, Time]:
+        """ This is a zero-duration directive. """
+        self.count_completed_this_plan += 1
+        exit_time = start_time
+        return True, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'SUBFRAME {self.fraction}'
+
+    @property
+    def n_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return self.count_completed_this_plan
+
+    @property
+    def n_partially_completed(self) -> int:
+        """ Returns zero because never actually executed. """
+        return 0
+
+    def __str__(self) -> str:
+        return f'Subframe object, fraction={self.fraction}.'
+
+
 class Pointing(ActionDirective):
     """ Represents a POINTING directive; merely adds #POINTING line to ACP plan and
         to summary file; no timing effect for now."""
@@ -937,9 +978,10 @@ class ImageSeries(ActionDirective):
                 running_time += post_image_duration
                 n_exposures_completed += 1
 
-                if running_time >= quitat_time:
-                    quitat_time_has_passed = True
-                    break
+                if quitat_time is not None:
+                    if running_time >= quitat_time:
+                        quitat_time_has_passed = True
+                        break
             if quitat_time_has_passed:
                 break  # fall through.
         running_time = equip.stop_guider(running_time)
@@ -1069,10 +1111,11 @@ class ColorSeries(ActionDirective):
 
     def summary_content_string(self) -> str:
         """ Returns content string for summary file line. """
-        summary_content_string = f'Image {self.target_name}'
-        for exp in self.exposures:
-            summary_content_string += f' {exp.filter}={exp.seconds}s({exp.count})'
-        summary_content_string += f' @ {self.parm_string.rsplit("@")[1].strip()}'
+        # summary_content_string = f'Image {self.target_name}'
+        # for exp in self.exposures:
+        #     summary_content_string += f' {exp.filter}={exp.seconds}s({exp.count})'
+        # summary_content_string += f' @ {self.parm_string.rsplit("@")[1].strip()}'
+        summary_content_string = f'Color {" ".join(self.parm_string.split())}'
         summary_content_string = \
             summary_content_string.rsplit('/ROT', maxsplit=1)[0].rstrip()
         if self.equip.has_rotator:
@@ -1283,7 +1326,7 @@ class Shutdown(ActionDirective):
     @staticmethod
     def summary_content_string() -> str:
         """ Returns content string for summary file line. """
-        return f'SHUTDOWN'
+        return f'BIAS, then SHUTDOWN'  # BIAS ensures that camera shutter is closed.
 
     @property
     def n_completed(self) -> int:
@@ -1540,6 +1583,8 @@ def make_plan_list(raw_string_list: List[str], site: Site, equip: Equipment) \
                 pass  # should not reach here...comments are handled above in loop.
             case 'readoutmode':
                 this_plan.append(Readoutmode(parm_string, equip, comment))
+            case 'subframe':
+                this_plan.append(Subframe(parm_string, equip, comment))
             case 'pointing':
                 this_plan.append(Pointing(comment))
             case 'nopointing':
@@ -1624,6 +1669,8 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                     lines.append(f';{a_dir.comment_text}')
                 case Readoutmode():
                     lines.append(f'#READOUTMODE {a_dir.mode_name}')
+                case Subframe():
+                    lines.append(f'#SUBFRAME {a_dir.fraction}')
                 case Pointing():
                     lines.extend([';', '#POINTING ; next target only.'])
                 case Nopointing():
@@ -1649,7 +1696,8 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                 case Domeclose():
                     lines.extend([f'#DOMECLOSE', ';'])
                 case Shutdown():
-                    lines.append(f'#SHUTDOWN')
+                    lines.extend(['#BIAS ; ensures camera shutter is closed.',
+                                  '#SHUTDOWN'])
 
         if this_plan.chain_object is not None:
             lines.extend([';', f'#CHAIN {this_plan.chain_object.target_filename}'])
@@ -1767,7 +1815,8 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
                             adsi.min_alt = min(start_alt, exit_alt, adsi.min_alt)
                         sim_time = exit_time  # update sim time.
                     case Chill() | Autofocus() | Domeopen() | Domeclose() |\
-                        Shutdown() | Readoutmode() | Pointing() | Nopointing():
+                         Shutdown() | Readoutmode() | Subframe() | \
+                         Pointing() | Nopointing():
                         start_time = sim_time
                         completed, exit_time = adsi.adir.perform(start_time)
                         if i_set == 1:

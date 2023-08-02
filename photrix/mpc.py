@@ -113,7 +113,7 @@ class MPC_eph:
                                                     mpc_date_string=parameter_dict['d'],
                                                     payload_dict=parameter_dict))
             soup = BeautifulSoup(text, features='html5lib')
-            self.mp_name = str(soup.contents[1].contents[2].contents[10]). \
+            self.mp_name = str(soup.contents[1].contents[2].contents[12]).\
                 split(')')[1].split('<')[0].strip()
             lines = [str(s).strip() for s in soup.find_all('pre')[0].contents]
             this_eph_lines = []

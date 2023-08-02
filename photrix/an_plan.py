@@ -69,7 +69,7 @@ WAITUNTIL_MAX_WAITING_TIME = 12 * 3600  # 12 hours.
 # Specific to AC4040M camera operation:
 LEGAL_READOUTMODE_NAMES = ('HDR', 'High Gain', 'Low Gain', 'High Gain StackPro')
 LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS = \
-    (480, 420, 360, 300, 240, 180, 120, 90, 72, 48, 36)  # Set to None to deactivate.
+    (480, 420, 360, 300, 240, 180, 150, 120, 90, 72, 60, 48, 36)  # None -> deactivate.
 MIN_COLOR_EXPOSURE_DURATION = min(LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS)
 MAX_COLOR_EXPOSURE_DURATION = max(LEGAL_LIGHT_FRAME_EXPOSURE_DURATIONS)
 
@@ -452,13 +452,23 @@ class Quitat(PlanDirective):
     """ Represents a QUITAT directive; sets and keeps plan value for #QUITAT.
         This is a singleton within each plan; the last within a Plan is used.
         Cell Syntax: QUITAT utc_to_quit_plan
-        Example: QUITAT 05:25
+        Example: QUITAT 05:25  **or** QUITAT -12 (the latter is new ACP format 2023-08).
         Where: anywhere within a Plan. """
     def __init__(self, parm_string: str, comment: str, an: Astronight):
         self.parm_string = parm_string
         self.comment = comment
         self.an = an
-        self.quitat_time = self.an.time_from_hhmm(parm_string.strip())
+        self.parm = self.parm_string.strip()
+        if len(self.parm) == 5 and ':' in self.parm:
+            # Time is defined by a string like '11:25':
+            self.parm_type = 'UTC'
+            self.quitat_time = an.time_from_hhmm(self.parm)
+        else:
+            # Time is defined by sun altitude:
+            self.parm_type = 'sun altitude'
+            required_sun_alt = float(self.parm)
+            self.quitat_time = an.times_at_sun_alt(sun_alt=required_sun_alt)[1]
+        # self.quitat_time = self.an.time_from_hhmm(parm_string.strip())
         self.quitat_duration = TimeDelta(QUITAT_DURATION * u.s)
 
     def quitat_time_is_reached(self, time_now: Time) -> Tuple[bool, Time]:
@@ -469,7 +479,9 @@ class Quitat(PlanDirective):
 
     def summary_content_string(self) -> str:
         """ Required for summary file. """
-        return f'QUITAT {hhmm(self.quitat_time)}'
+        if self.parm_type == 'UTC':
+            return f'QUITAT {self.parm_string} utc'
+        return f'QUITAT sun {self.parm_string}\N{DEGREE SIGN} alt'
 
     def __str__(self) -> str:
         return f'Quitat object: {self.parm_string.strip()}'
@@ -1227,6 +1239,49 @@ class Autofocus(ActionDirective):
         return f'Autofocus object'
 
 
+class Waitfor(ActionDirective):
+    """ Represents one Waitfor directive. Does nothing but insert a delay.
+        My appear anywhere in a Plan.
+        Cell Syntax: WAITFOR 60
+        Parameter is desired delay in integer number of seconds."""
+
+    def __init__(self, parm_string: str, comment: str):
+        self.parm_string = parm_string.strip()
+        self.comment = comment
+        self.waitfor_seconds = int(round(self.parse_parm_string(self.parm_string)))
+        self.waitfor_duration = TimeDelta(self.waitfor_seconds * u.s)
+        self.count_completed_this_plan = 0
+
+    @staticmethod
+    def parse_parm_string(parm_string: str) -> float:
+        return float(parm_string.strip())
+
+    def perform(self, start_time: Time) -> Tuple[bool, Time]:
+        """ Called at any time during a plan. Performs and accounts for time needed,
+            including slew to focus star and return slew. """
+        exit_time = start_time + self.waitfor_duration
+        self.count_completed_this_plan += 1
+        logging.debug(f'{start_time}       Waitfor // completed at {exit_time}.')
+        return True, exit_time
+
+    def summary_content_string(self) -> str:
+        """ Returns content string for summary file line. """
+        return f'WAITFOR {self.waitfor_seconds} ; seconds'
+
+    @property
+    def n_completed(self) -> int:
+        """ Returns number of .perform() calls actually completed. """
+        return self.count_completed_this_plan
+
+    @property
+    def n_partially_completed(self) -> int:
+        """ Returns zero because it's assumed AUTOFOCUS always completes. """
+        return 0
+
+    def __str__(self) -> str:
+        return f'Waitfor object: {self.waitfor_seconds} seconds'
+
+
 class Domeopen(ActionDirective):
     """ Represents one Domeopen directive. May appear anywhere in a Plan, but typically
         only near the top of a night's first Plan.
@@ -1250,7 +1305,7 @@ class Domeopen(ActionDirective):
     @staticmethod
     def summary_content_string() -> str:
         """ Returns content string for summary file line. """
-        return f'DOMEOPEN'
+        return f'BIAS, then DOMEOPEN'  # BIAS ensures that camera shutter is closed.
 
     @property
     def n_completed(self) -> int:
@@ -1289,7 +1344,7 @@ class Domeclose(ActionDirective):
     @staticmethod
     def summary_content_string() -> str:
         """ Returns content string for summary file line. """
-        return f'DOMECLOSE'
+        return f'BIAS, then DOMECLOSE'  # BIAS ensures that camera shutter is closed.
 
     @property
     def n_completed(self) -> int:
@@ -1601,6 +1656,8 @@ def make_plan_list(raw_string_list: List[str], site: Site, equip: Equipment) \
                 this_plan.append(Chill(parm_string, comment, equip))
             case 'autofocus':
                 this_plan.append(Autofocus(comment))
+            case 'waitfor':
+                this_plan.append(Waitfor(parm_string, comment))
             case 'domeopen':
                 this_plan.append(Domeopen(comment, equip))
             case 'domeclose':
@@ -1691,12 +1748,19 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
                     lines.append(f'#CHILL {a_dir.parm_string}')
                 case Autofocus():
                     lines.append(f'#AUTOFOCUS')
+                case Waitfor():
+                    lines.append(f'#WAITFOR {a_dir.parm_string}')
                 case Domeopen():
-                    lines.extend([f'#DOMEOPEN', ';'])
+                    lines.extend(['#BINNING 1',  # '#COUNT 1', '#FILTER GG495',
+                                  '#BIAS ; ensures camera shutter is closed.',
+                                  f'#DOMEOPEN', ';'])
                 case Domeclose():
-                    lines.extend([f'#DOMECLOSE', ';'])
+                    lines.extend(['#BINNING 1',  # '#COUNT 1', '#FILTER GG495',
+                                  '#BIAS ; ensures camera shutter is closed.',
+                                  f'#DOMECLOSE', ';'])
                 case Shutdown():
-                    lines.extend(['#BIAS ; ensures camera shutter is closed.',
+                    lines.extend(['#BINNING 1',  # '#COUNT 1', '#FILTER GG495',
+                                  '#BIAS ; ensures camera shutter is closed.',
                                   '#SHUTDOWN'])
 
         if this_plan.chain_object is not None:
@@ -1816,7 +1880,7 @@ def simulate_plans(an: Astronight, plan_list: List[Plan]) -> OrderedDict:
                         sim_time = exit_time  # update sim time.
                     case Chill() | Autofocus() | Domeopen() | Domeclose() |\
                          Shutdown() | Readoutmode() | Subframe() | \
-                         Pointing() | Nopointing():
+                         Pointing() | Nopointing() | Waitfor():
                         start_time = sim_time
                         completed, exit_time = adsi.adir.perform(start_time)
                         if i_set == 1:

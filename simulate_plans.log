@@ -1,0 +1,503 @@
+Logging file started at 2023-01-04 01:49:07.697794
+
+
+*********************************************************
+2022-11-29 18:50:40.273 Starting PLAN 20221129_A, sets=1
+2022-11-29 18:50:40.273 (No AFINTERVAL for this plan)
+2022-11-29 18:50:40.273 QUITAT=2022-11-30 05:35:00.000
+2022-11-29 18:50:45.273 Starting Set 1
+2022-11-29 18:50:45.273    1, 0: Waituntil object: sun altitude = -2
+2022-11-29 18:50:45.273       Waituntil // completed at 2022-11-30 00:01:43.410.
+2022-11-30 00:01:43.410    1, 1: Domeopen object
+2022-11-30 00:01:43.410       Equipment.open_dome() // completed at 2022-11-30 00:03:43.410.
+2022-11-30 00:01:43.410       Domeopen // completed at 2022-11-30 00:03:43.410.
+2022-11-30 00:03:43.410    1, 2: Waituntil object: sun altitude = -6
+2022-11-30 00:03:43.410       Waituntil // completed at 2022-11-30 00:22:27.775.
+2022-11-30 00:22:27.775    1, 3: Chill object: -35
+2022-11-30 00:22:27.775       Equipment.change_camera_temp(15.0->-35.0) // completed at 2022-11-30 00:25:27.775.
+2022-11-30 00:22:27.775       Chill // completed at 2022-11-30 00:25:27.775.
+2022-11-30 00:25:27.775    1, 4: Waituntil object: sun altitude = -10
+2022-11-30 00:25:27.775       Waituntil // completed at 2022-11-30 00:42:49.443.
+2022-11-30 00:42:49.443    1, 5: Comment object: 'comment between first WAITUNTIL and first QUITAT.'
+2022-11-30 00:42:49.443    1, 6: Autofocus object
+2022-11-30 00:42:49.443       Autofocus // completed at 2022-11-30 00:45:49.443.
+2022-11-30 00:45:49.443    1, 7: ImageSeries object: MP_12746
+2022-11-30 00:45:49.443       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 00:45:49.443       Equipment.slew_scope() // completed at 2022-11-30 00:45:58.204.
+2022-11-30 00:45:58.204       Equipment.slew_dome_to_azimuth(102.354 degrees az)... 
+2022-11-30 00:45:58.204       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 00:46:36.322.
+2022-11-30 00:46:36.322       Start do_exposures(): 4 exposures requested in filter BB.
+2022-11-30 00:46:36.322       Equipment.use_filter(BB) FILTER CHANGE // completed at 2022-11-30 00:46:46.322.
+2022-11-30 00:46:46.322       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 00:47:06.322.
+2022-11-30 00:47:06.322       Start exposure 1 of 4, 900 seconds.
+2022-11-30 01:02:26.322       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 01:02:32.322.
+2022-11-30 01:02:32.322       Start exposure 2 of 4, 900 seconds.
+2022-11-30 01:17:52.322       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 01:17:58.322.
+2022-11-30 01:17:58.322       Start exposure 3 of 4, 900 seconds.
+2022-11-30 01:33:18.322       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 01:33:24.322.
+2022-11-30 01:33:24.322       Start exposure 4 of 4, 900 seconds.
+2022-11-30 01:48:44.322       Equipment.stop_guider() // completed at 2022-11-30 01:48:45.322.
+2022-11-30 01:48:45.322       do_exposures(): 4 of 4 exposures requested were actually completed.
+2022-11-30 01:48:45.322       ImageSeries // fully completed at 2022-11-30 01:48:45.322.
+2022-11-30 01:48:45.322    1, 8: Comment object: '~0155 UTC'
+2022-11-30 01:48:45.322    1, 9: ImageSeries object: MP_3229
+2022-11-30 01:48:45.322       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 01:48:45.322       Equipment.slew_scope() // completed at 2022-11-30 01:48:49.863.
+2022-11-30 01:48:49.863       Equipment.slew_dome_to_azimuth(97.687 degrees az)... 
+2022-11-30 01:48:49.863       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 01:48:56.419.
+2022-11-30 01:48:56.419       Start do_exposures(): 3 exposures requested in filter BB.
+2022-11-30 01:48:56.419       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 01:48:57.419.
+2022-11-30 01:48:57.419       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 01:49:17.419.
+2022-11-30 01:49:17.419       Start exposure 1 of 3, 780 seconds.
+2022-11-30 02:02:37.419       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 02:02:43.419.
+2022-11-30 02:02:43.419       Start exposure 2 of 3, 780 seconds.
+2022-11-30 02:16:03.419       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 02:16:09.419.
+2022-11-30 02:16:09.419       Start exposure 3 of 3, 780 seconds.
+2022-11-30 02:29:29.419       Equipment.stop_guider() // completed at 2022-11-30 02:29:30.419.
+2022-11-30 02:29:30.419       do_exposures(): 3 of 3 exposures requested were actually completed.
+2022-11-30 02:29:30.419       ImageSeries // fully completed at 2022-11-30 02:29:30.419.
+2022-11-30 02:29:30.419    1, 10: ImageSeries object: MP_3166
+2022-11-30 02:29:30.419       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 02:29:30.419       Equipment.slew_scope() // completed at 2022-11-30 02:29:36.509.
+2022-11-30 02:29:36.509       Equipment.slew_dome_to_azimuth(83.827 degrees az)... 
+2022-11-30 02:29:36.509       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 02:29:46.129.
+2022-11-30 02:29:46.129       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 02:29:46.129       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 02:29:47.129.
+2022-11-30 02:29:47.129       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 02:30:07.129.
+2022-11-30 02:30:07.129       Start exposure 1 of 1, 420 seconds.
+2022-11-30 02:37:27.129       Equipment.stop_guider() // completed at 2022-11-30 02:37:28.129.
+2022-11-30 02:37:28.129       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 02:37:28.129       ImageSeries // fully completed at 2022-11-30 02:37:28.129.
+2022-11-30 02:37:28.129    1, 11: Comment object: 'comment after first MP_3166.'
+2022-11-30 02:37:28.129    1, 12: ImageSeries object: MP_3229
+2022-11-30 02:37:28.129       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 02:37:28.129       Equipment.slew_scope() // completed at 2022-11-30 02:37:34.219.
+2022-11-30 02:37:34.219       Equipment.slew_dome_to_azimuth(110.325 degrees az)... 
+2022-11-30 02:37:34.219       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 02:37:48.052.
+2022-11-30 02:37:48.052       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 02:37:48.052       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 02:37:49.052.
+2022-11-30 02:37:49.052       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 02:38:09.052.
+2022-11-30 02:38:09.052       Start exposure 1 of 2, 780 seconds.
+2022-11-30 02:51:29.052       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 02:51:35.052.
+2022-11-30 02:51:35.052       Start exposure 2 of 2, 780 seconds.
+2022-11-30 03:04:55.052       Equipment.stop_guider() // completed at 2022-11-30 03:04:56.052.
+2022-11-30 03:04:56.052       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 03:04:56.052       ImageSeries // fully completed at 2022-11-30 03:04:56.052.
+2022-11-30 03:04:56.052    1, 13: ImageSeries object: MP_3166
+2022-11-30 03:04:56.052       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 03:04:56.052       Equipment.slew_scope() // completed at 2022-11-30 03:05:02.142.
+2022-11-30 03:05:02.142       Equipment.slew_dome_to_azimuth(88.302 degrees az)... 
+2022-11-30 03:05:02.142       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 03:05:14.483.
+2022-11-30 03:05:14.483       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 03:05:14.483       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 03:05:15.483.
+2022-11-30 03:05:15.483       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 03:05:35.483.
+2022-11-30 03:05:35.483       Start exposure 1 of 1, 420 seconds.
+2022-11-30 03:12:55.483       Equipment.stop_guider() // completed at 2022-11-30 03:12:56.483.
+2022-11-30 03:12:56.483       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 03:12:56.483       ImageSeries // fully completed at 2022-11-30 03:12:56.483.
+2022-11-30 03:12:56.483    1, 14: Autofocus object
+2022-11-30 03:12:56.483       Autofocus // completed at 2022-11-30 03:15:56.483.
+2022-11-30 03:15:56.483    1, 15: ImageSeries object: MP_3229
+2022-11-30 03:15:56.483       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 03:15:56.483       Equipment.slew_scope() // completed at 2022-11-30 03:16:02.573.
+2022-11-30 03:16:02.573       Equipment.slew_dome_to_azimuth(132.426 degrees az)... 
+2022-11-30 03:16:02.573       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 03:16:22.281.
+2022-11-30 03:16:22.281       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 03:16:22.281       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 03:16:23.281.
+2022-11-30 03:16:23.281       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 03:16:43.281.
+2022-11-30 03:16:43.281       Start exposure 1 of 2, 780 seconds.
+2022-11-30 03:30:03.281       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 03:30:09.281.
+2022-11-30 03:30:09.281       Start exposure 2 of 2, 780 seconds.
+2022-11-30 03:43:29.281       Equipment.stop_guider() // completed at 2022-11-30 03:43:30.281.
+2022-11-30 03:43:30.281       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 03:43:30.281       ImageSeries // fully completed at 2022-11-30 03:43:30.281.
+2022-11-30 03:43:30.281    1, 16: Autofocus object
+2022-11-30 03:43:30.281       Autofocus // completed at 2022-11-30 03:46:30.281.
+2022-11-30 03:46:30.281    1, 17: ImageSeries object: MP_3166
+2022-11-30 03:46:30.281       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 03:46:30.281       Equipment.slew_scope() // completed at 2022-11-30 03:46:36.371.
+2022-11-30 03:46:36.371       Equipment.slew_dome_to_azimuth(94.148 degrees az)... 
+2022-11-30 03:46:36.371       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 03:46:54.130.
+2022-11-30 03:46:54.130       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 03:46:54.130       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 03:46:55.130.
+2022-11-30 03:46:55.130       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 03:47:15.130.
+2022-11-30 03:47:15.130       Start exposure 1 of 1, 420 seconds.
+2022-11-30 03:54:35.130       Equipment.stop_guider() // completed at 2022-11-30 03:54:36.130.
+2022-11-30 03:54:36.130       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 03:54:36.130       ImageSeries // fully completed at 2022-11-30 03:54:36.130.
+2022-11-30 03:54:36.130    1, 18: ImageSeries object: MP_3229
+2022-11-30 03:54:36.130       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 03:54:36.130       Equipment.slew_scope() // completed at 2022-11-30 03:54:42.221.
+2022-11-30 03:54:42.221       Equipment.slew_dome_to_azimuth(187.131 degrees az)... 
+2022-11-30 03:54:42.221       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 03:55:18.215.
+2022-11-30 03:55:18.215       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 03:55:18.215       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 03:55:19.215.
+2022-11-30 03:55:19.215       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 03:55:39.215.
+2022-11-30 03:55:39.215       Start exposure 1 of 2, 780 seconds.
+2022-11-30 04:08:59.215       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 04:09:05.215.
+2022-11-30 04:09:05.215       Start exposure 2 of 2, 780 seconds.
+2022-11-30 04:22:25.215       Equipment.stop_guider() // completed at 2022-11-30 04:22:26.215.
+2022-11-30 04:22:26.215       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 04:22:26.215       ImageSeries // fully completed at 2022-11-30 04:22:26.215.
+2022-11-30 04:22:26.215    1, 19: ImageSeries object: MP_3166
+2022-11-30 04:22:26.215       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 04:22:26.215       Equipment.slew_scope() // completed at 2022-11-30 04:22:32.305.
+2022-11-30 04:22:32.305       Equipment.slew_dome_to_azimuth(100.219 degrees az)... 
+2022-11-30 04:22:32.305       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 04:23:06.276.
+2022-11-30 04:23:06.276       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 04:23:06.276       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 04:23:07.276.
+2022-11-30 04:23:07.276       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 04:23:27.276.
+2022-11-30 04:23:27.276       Start exposure 1 of 1, 420 seconds.
+2022-11-30 04:30:47.276       Equipment.stop_guider() // completed at 2022-11-30 04:30:48.276.
+2022-11-30 04:30:48.276       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 04:30:48.276       ImageSeries // fully completed at 2022-11-30 04:30:48.276.
+2022-11-30 04:30:48.276    1, 20: ImageSeries object: MP_3229
+2022-11-30 04:30:48.276       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 04:30:48.276       Equipment.slew_scope() // completed at 2022-11-30 04:30:54.366.
+2022-11-30 04:30:54.366       Equipment.slew_dome_to_azimuth(232.344 degrees az)... 
+2022-11-30 04:30:54.366       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 04:31:43.407.
+2022-11-30 04:31:43.407       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 04:31:43.407       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 04:31:44.407.
+2022-11-30 04:31:44.407       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 04:32:04.407.
+2022-11-30 04:32:04.407       Start exposure 1 of 2, 780 seconds.
+2022-11-30 04:45:24.407       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 04:45:30.407.
+2022-11-30 04:45:30.407       Start exposure 2 of 2, 780 seconds.
+2022-11-30 04:58:50.407       Equipment.stop_guider() // completed at 2022-11-30 04:58:51.407.
+2022-11-30 04:58:51.407       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 04:58:51.407       ImageSeries // fully completed at 2022-11-30 04:58:51.407.
+2022-11-30 04:58:51.407    1, 21: ImageSeries object: MP_3166
+2022-11-30 04:58:51.407       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 04:58:51.407       Equipment.slew_scope() // completed at 2022-11-30 04:58:57.497.
+2022-11-30 04:58:57.497       Equipment.slew_dome_to_azimuth(108.268 degrees az)... 
+2022-11-30 04:58:57.497       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 04:59:43.856.
+2022-11-30 04:59:43.856       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 04:59:43.856       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 04:59:44.856.
+2022-11-30 04:59:44.856       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 05:00:04.856.
+2022-11-30 05:00:04.856       Start exposure 1 of 1, 420 seconds.
+2022-11-30 05:07:24.856       Equipment.stop_guider() // completed at 2022-11-30 05:07:25.856.
+2022-11-30 05:07:25.856       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 05:07:25.856       ImageSeries // fully completed at 2022-11-30 05:07:25.856.
+2022-11-30 05:07:25.856    1, 22: ImageSeries object: MP_3229
+2022-11-30 05:07:25.856       ImageSeries: Quitat=2022-11-30 05:35:00.000.
+2022-11-30 05:07:25.856       Equipment.slew_scope() // completed at 2022-11-30 05:07:31.946.
+2022-11-30 05:07:31.946       Equipment.slew_dome_to_azimuth(251.061 degrees az)... 
+2022-11-30 05:07:31.946       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 05:08:24.544.
+2022-11-30 05:08:24.544       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 05:08:24.544       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 05:08:25.544.
+2022-11-30 05:08:25.544       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 05:08:45.544.
+2022-11-30 05:08:45.544       Start exposure 1 of 2, 780 seconds.
+2022-11-30 05:22:05.544       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 05:22:11.544.
+2022-11-30 05:22:11.544       Start exposure 2 of 2, 780 seconds.
+2022-11-30 05:35:31.544       Equipment.stop_guider() // completed at 2022-11-30 05:35:32.544.
+2022-11-30 05:35:32.544       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 05:35:32.544       ImageSeries // fully completed at 2022-11-30 05:35:32.544.
+2022-11-30 05:35:32.544    QUITAT detected.
+2022-11-30 05:35:32.544    Set 1 exits on QUITAT.
+2022-11-30 05:35:37.544 Chaining set up to plan_20221129_b.txt
+2022-11-30 05:35:37.544 Exiting PLAN 20221129_A
+
+
+*********************************************************
+2022-11-30 05:35:37.544 Starting PLAN 20221129_B, sets=100
+2022-11-30 05:35:37.544 afinterval=120
+2022-11-30 05:35:37.544 QUITAT=2022-11-30 07:35:00.000
+2022-11-30 05:35:42.544 Starting Set 1
+2022-11-30 05:35:42.544    1, 0: Waituntil object: UTC = 05:50
+2022-11-30 05:35:42.544       Waituntil // completed at 2022-11-30 05:50:00.000.
+2022-11-30 05:50:00.000    1, 1: ImageSeries object: MP_3166
+2022-11-30 05:50:00.000       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 05:50:00.000       Equipment.slew_scope() // completed at 2022-11-30 05:50:06.090.
+2022-11-30 05:50:06.090       Equipment.slew_dome_to_azimuth(127.084 degrees az)... 
+2022-11-30 05:50:06.090       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 05:50:52.416.
+2022-11-30 05:50:52.416       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 05:50:52.416       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 05:50:53.416.
+2022-11-30 05:50:53.416       Afinterval.perform() AUTOFOCUS DONE // completed at 2022-11-30 05:53:53.416.
+2022-11-30 05:53:53.416       do_exposures(): Afinterval performed after 0 of 1 exposures.
+2022-11-30 05:53:53.416       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 05:54:13.416.
+2022-11-30 05:54:13.416       Start exposure 1 of 1, 420 seconds.
+2022-11-30 06:01:33.416       Equipment.stop_guider() // completed at 2022-11-30 06:01:34.416.
+2022-11-30 06:01:34.416       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 06:01:34.416       ImageSeries // fully completed at 2022-11-30 06:01:34.416.
+2022-11-30 06:01:34.416    1, 2: ImageSeries object: MP_12746
+2022-11-30 06:01:34.416       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 06:01:34.416       Equipment.slew_scope() // completed at 2022-11-30 06:01:40.604.
+2022-11-30 06:01:40.604       Equipment.slew_dome_to_azimuth(246.567 degrees az)... 
+2022-11-30 06:01:40.604       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 06:02:25.432.
+2022-11-30 06:02:25.432       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 06:02:25.432       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 06:02:26.432.
+2022-11-30 06:02:26.432       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 06:02:46.432.
+2022-11-30 06:02:46.432       Start exposure 1 of 2, 900 seconds.
+2022-11-30 06:18:06.432       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 06:18:12.432.
+2022-11-30 06:18:12.432       Start exposure 2 of 2, 900 seconds.
+2022-11-30 06:33:32.432       Equipment.stop_guider() // completed at 2022-11-30 06:33:33.432.
+2022-11-30 06:33:33.432       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 06:33:33.432       ImageSeries // fully completed at 2022-11-30 06:33:33.432.
+2022-11-30 06:33:33.432    Set 1 exits on completion.
+2022-11-30 06:33:38.432 Starting Set 2
+2022-11-30 06:33:38.432    2, 0: Waituntil object: UTC = 05:50
+2022-11-30 06:33:38.432    2, 1: ImageSeries object: MP_3166
+2022-11-30 06:33:38.432       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 06:33:38.432       Equipment.slew_scope() // completed at 2022-11-30 06:33:44.620.
+2022-11-30 06:33:44.620       Equipment.slew_dome_to_azimuth(160.197 degrees az)... 
+2022-11-30 06:33:44.620       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 06:34:18.410.
+2022-11-30 06:34:18.410       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 06:34:18.410       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 06:34:19.410.
+2022-11-30 06:34:19.410       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 06:34:39.410.
+2022-11-30 06:34:39.410       Start exposure 1 of 1, 420 seconds.
+2022-11-30 06:41:59.410       Equipment.stop_guider() // completed at 2022-11-30 06:42:00.410.
+2022-11-30 06:42:00.410       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 06:42:00.410       ImageSeries // fully completed at 2022-11-30 06:42:00.410.
+2022-11-30 06:42:00.410    2, 2: ImageSeries object: MP_12746
+2022-11-30 06:42:00.410       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 06:42:00.410       Equipment.slew_scope() // completed at 2022-11-30 06:42:06.598.
+2022-11-30 06:42:06.598       Equipment.slew_dome_to_azimuth(255.488 degrees az)... 
+2022-11-30 06:42:06.598       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 06:42:43.362.
+2022-11-30 06:42:43.362       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 06:42:43.362       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 06:42:44.362.
+2022-11-30 06:42:44.362       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 06:43:04.362.
+2022-11-30 06:43:04.362       Start exposure 1 of 2, 900 seconds.
+2022-11-30 06:58:24.362       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 06:58:30.362.
+2022-11-30 06:58:30.362       Start exposure 2 of 2, 900 seconds.
+2022-11-30 07:13:50.362       Equipment.stop_guider() // completed at 2022-11-30 07:13:51.362.
+2022-11-30 07:13:51.362       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 07:13:51.362       ImageSeries // fully completed at 2022-11-30 07:13:51.362.
+2022-11-30 07:13:51.362    Set 2 exits on completion.
+2022-11-30 07:13:56.362 Starting Set 3
+2022-11-30 07:13:56.362    3, 0: Waituntil object: UTC = 05:50
+2022-11-30 07:13:56.362    3, 1: ImageSeries object: MP_3166
+2022-11-30 07:13:56.362       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 07:13:56.362       Equipment.slew_scope() // completed at 2022-11-30 07:14:02.550.
+2022-11-30 07:14:02.550       Equipment.slew_dome_to_azimuth(203.898 degrees az)... 
+2022-11-30 07:14:02.550       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 07:14:24.747.
+2022-11-30 07:14:24.747       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 07:14:24.747       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 07:14:25.747.
+2022-11-30 07:14:25.747       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 07:14:45.747.
+2022-11-30 07:14:45.747       Start exposure 1 of 1, 420 seconds.
+2022-11-30 07:22:05.747       Equipment.stop_guider() // completed at 2022-11-30 07:22:06.747.
+2022-11-30 07:22:06.747       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 07:22:06.747       ImageSeries // fully completed at 2022-11-30 07:22:06.747.
+2022-11-30 07:22:06.747    3, 2: ImageSeries object: MP_12746
+2022-11-30 07:22:06.747       ImageSeries: Quitat=2022-11-30 07:35:00.000.
+2022-11-30 07:22:06.747       Equipment.slew_scope() // completed at 2022-11-30 07:22:12.935.
+2022-11-30 07:22:12.935       Equipment.slew_dome_to_azimuth(262.452 degrees az)... 
+2022-11-30 07:22:12.935       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 07:22:37.453.
+2022-11-30 07:22:37.453       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 07:22:37.453       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 07:22:38.453.
+2022-11-30 07:22:38.453       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 07:22:58.453.
+2022-11-30 07:22:58.453       Start exposure 1 of 2, 900 seconds.
+2022-11-30 07:38:18.453       Equipment.stop_guider() // completed at 2022-11-30 07:38:19.453.
+2022-11-30 07:38:19.453       do_exposures(): 1 of 2 exposures requested were actually completed.
+2022-11-30 07:38:19.453       ImageSeries // partially completed at 2022-11-30 07:38:19.453.
+2022-11-30 07:38:19.453    QUITAT detected.
+2022-11-30 07:38:19.453    Set 3 exits on QUITAT.
+2022-11-30 07:38:24.453 Chaining set up to plan_20221129_c.txt
+2022-11-30 07:38:24.453 Exiting PLAN 20221129_B
+
+
+*********************************************************
+2022-11-30 07:38:24.453 Starting PLAN 20221129_C, sets=1
+2022-11-30 07:38:24.453 afinterval=120
+2022-11-30 07:38:24.453 QUITAT=2022-11-30 09:50:00.000
+2022-11-30 07:38:29.453 Starting Set 1
+2022-11-30 07:38:29.453    1, 0: Waituntil object: UTC = 07:35
+2022-11-30 07:38:29.453       Waituntil // completed at 2022-11-30 07:38:29.453.
+2022-11-30 07:38:29.453    1, 1: ImageSeries object: MP_3166
+2022-11-30 07:38:29.453       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 07:38:29.453       Equipment.slew_scope() // completed at 2022-11-30 07:38:35.641.
+2022-11-30 07:38:35.641       Equipment.slew_dome_to_azimuth(224.035 degrees az)... 
+2022-11-30 07:38:35.641       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 07:38:53.447.
+2022-11-30 07:38:53.447       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 07:38:53.447       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 07:38:54.447.
+2022-11-30 07:38:54.447       Afinterval.perform() AUTOFOCUS DONE // completed at 2022-11-30 07:41:54.447.
+2022-11-30 07:41:54.447       do_exposures(): Afinterval performed after 0 of 2 exposures.
+2022-11-30 07:41:54.447       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 07:42:14.447.
+2022-11-30 07:42:14.447       Start exposure 1 of 2, 420 seconds.
+2022-11-30 07:49:34.447       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 07:49:40.447.
+2022-11-30 07:49:40.447       Start exposure 2 of 2, 420 seconds.
+2022-11-30 07:57:00.447       Equipment.stop_guider() // completed at 2022-11-30 07:57:01.447.
+2022-11-30 07:57:01.447       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 07:57:01.447       ImageSeries // fully completed at 2022-11-30 07:57:01.447.
+2022-11-30 07:57:01.447    1, 2: ImageSeries object: MP_3229
+2022-11-30 07:57:01.447       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 07:57:01.447       Equipment.slew_scope() // completed at 2022-11-30 07:57:07.537.
+2022-11-30 07:57:07.537       Equipment.slew_dome_to_azimuth(279.198 degrees az)... 
+2022-11-30 07:57:07.537       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 07:57:30.925.
+2022-11-30 07:57:30.925       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 07:57:30.925       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 07:57:31.925.
+2022-11-30 07:57:31.925       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 07:57:51.925.
+2022-11-30 07:57:51.925       Start exposure 1 of 1, 780 seconds.
+2022-11-30 08:11:11.925       Equipment.stop_guider() // completed at 2022-11-30 08:11:12.925.
+2022-11-30 08:11:12.925       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 08:11:12.925       ImageSeries // fully completed at 2022-11-30 08:11:12.925.
+2022-11-30 08:11:12.925    1, 3: ColorSeries object: MP_333
+2022-11-30 08:11:12.925       ColorSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 08:11:12.925       Equipment.slew_scope() // completed at 2022-11-30 08:11:20.511.
+2022-11-30 08:11:20.511       Equipment.slew_dome_to_azimuth(173.204 degrees az)... 
+2022-11-30 08:11:20.511       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 08:12:00.842.
+2022-11-30 08:12:00.842       Start do_exposures(): 1 exposures requested in filter SR.
+2022-11-30 08:12:00.842       Equipment.use_filter(SR) FILTER CHANGE // completed at 2022-11-30 08:12:10.842.
+2022-11-30 08:12:10.842       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 08:12:30.842.
+2022-11-30 08:12:30.842       Start exposure 1 of 1, 126 seconds.
+2022-11-30 08:14:56.842       Start do_exposures(): 1 exposures requested in filter SG.
+2022-11-30 08:14:56.842       Equipment.use_filter(SG) FILTER CHANGE // completed at 2022-11-30 08:15:06.842.
+2022-11-30 08:15:06.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:15:12.842.
+2022-11-30 08:15:12.842       Start exposure 1 of 1, 280 seconds.
+2022-11-30 08:20:12.842       Start do_exposures(): 1 exposures requested in filter SI.
+2022-11-30 08:20:12.842       Equipment.use_filter(SI) FILTER CHANGE // completed at 2022-11-30 08:20:22.842.
+2022-11-30 08:20:22.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:20:28.842.
+2022-11-30 08:20:28.842       Start exposure 1 of 1, 252 seconds.
+2022-11-30 08:25:00.842       Start do_exposures(): 1 exposures requested in filter SR.
+2022-11-30 08:25:00.842       Equipment.use_filter(SR) FILTER CHANGE // completed at 2022-11-30 08:25:10.842.
+2022-11-30 08:25:10.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:25:16.842.
+2022-11-30 08:25:16.842       Start exposure 1 of 1, 126 seconds.
+2022-11-30 08:27:42.842       Start do_exposures(): 1 exposures requested in filter SI.
+2022-11-30 08:27:42.842       Equipment.use_filter(SI) FILTER CHANGE // completed at 2022-11-30 08:27:52.842.
+2022-11-30 08:27:52.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:27:58.842.
+2022-11-30 08:27:58.842       Start exposure 1 of 1, 252 seconds.
+2022-11-30 08:32:30.842       Start do_exposures(): 1 exposures requested in filter SG.
+2022-11-30 08:32:30.842       Equipment.use_filter(SG) FILTER CHANGE // completed at 2022-11-30 08:32:40.842.
+2022-11-30 08:32:40.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:32:46.842.
+2022-11-30 08:32:46.842       Start exposure 1 of 1, 280 seconds.
+2022-11-30 08:37:46.842       Start do_exposures(): 1 exposures requested in filter SR.
+2022-11-30 08:37:46.842       Equipment.use_filter(SR) FILTER CHANGE // completed at 2022-11-30 08:37:56.842.
+2022-11-30 08:37:56.842       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:38:02.842.
+2022-11-30 08:38:02.842       Start exposure 1 of 1, 126 seconds.
+2022-11-30 08:40:28.842       Equipment.stop_guider() // completed at 2022-11-30 08:40:29.842.
+2022-11-30 08:40:29.842       do_exposures(): 7 of 7 exposures requested were actually completed.
+2022-11-30 08:40:29.842       ColorSeries // fully completed at 2022-11-30 08:40:29.842.
+2022-11-30 08:40:29.842    1, 4: Comment object: '~0815 UTC'
+2022-11-30 08:40:29.842    1, 5: ImageSeries object: MP_3166
+2022-11-30 08:40:29.842       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 08:40:29.842       Equipment.slew_scope() // completed at 2022-11-30 08:40:35.440.
+2022-11-30 08:40:35.440       Equipment.slew_dome_to_azimuth(250.626 degrees az)... 
+2022-11-30 08:40:35.440       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 08:41:06.247.
+2022-11-30 08:41:06.247       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 08:41:06.247       Equipment.use_filter(BB) FILTER CHANGE // completed at 2022-11-30 08:41:16.247.
+2022-11-30 08:41:16.247       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 08:41:36.247.
+2022-11-30 08:41:36.247       Start exposure 1 of 1, 420 seconds.
+2022-11-30 08:48:56.247       Start do_exposures(): 2 exposures requested in filter R.
+2022-11-30 08:48:56.247       Equipment.use_filter(R) FILTER CHANGE // completed at 2022-11-30 08:49:06.247.
+2022-11-30 08:49:06.247       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:49:12.247.
+2022-11-30 08:49:12.247       Start exposure 1 of 2, 150 seconds.
+2022-11-30 08:52:02.247       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 08:52:08.247.
+2022-11-30 08:52:08.247       Start exposure 2 of 2, 150 seconds.
+2022-11-30 08:54:58.247       Equipment.stop_guider() // completed at 2022-11-30 08:54:59.247.
+2022-11-30 08:54:59.247       do_exposures(): 3 of 3 exposures requested were actually completed.
+2022-11-30 08:54:59.247       ImageSeries // fully completed at 2022-11-30 08:54:59.247.
+2022-11-30 08:54:59.247    1, 6: ImageSeries object: MP_858
+2022-11-30 08:54:59.247       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 08:54:59.247       Equipment.slew_scope() // completed at 2022-11-30 08:55:05.812.
+2022-11-30 08:55:05.812       Equipment.slew_dome_to_azimuth(97.749 degrees az)... 
+2022-11-30 08:55:05.812       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 08:56:01.771.
+2022-11-30 08:56:01.771       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 08:56:01.771       Equipment.use_filter(BB) FILTER CHANGE // completed at 2022-11-30 08:56:11.771.
+2022-11-30 08:56:11.771       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 08:56:31.771.
+2022-11-30 08:56:31.771       Start exposure 1 of 2, 720 seconds.
+2022-11-30 09:08:51.771       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 09:08:57.771.
+2022-11-30 09:08:57.771       Start exposure 2 of 2, 720 seconds.
+2022-11-30 09:21:17.771       Equipment.stop_guider() // completed at 2022-11-30 09:21:18.771.
+2022-11-30 09:21:18.771       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 09:21:18.771       ImageSeries // fully completed at 2022-11-30 09:21:18.771.
+2022-11-30 09:21:18.771    1, 7: ImageSeries object: MP_3166
+2022-11-30 09:21:18.771       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 09:21:18.771       Equipment.slew_scope() // completed at 2022-11-30 09:21:25.337.
+2022-11-30 09:21:25.337       Equipment.slew_dome_to_azimuth(259.832 degrees az)... 
+2022-11-30 09:21:25.337       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 09:22:24.365.
+2022-11-30 09:22:24.365       Start do_exposures(): 1 exposures requested in filter BB.
+2022-11-30 09:22:24.365       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 09:22:25.365.
+2022-11-30 09:22:25.365       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 09:22:45.365.
+2022-11-30 09:22:45.365       Start exposure 1 of 1, 420 seconds.
+2022-11-30 09:30:05.365       Equipment.stop_guider() // completed at 2022-11-30 09:30:06.365.
+2022-11-30 09:30:06.365       do_exposures(): 1 of 1 exposures requested were actually completed.
+2022-11-30 09:30:06.365       ImageSeries // fully completed at 2022-11-30 09:30:06.365.
+2022-11-30 09:30:06.365    1, 8: ImageSeries object: MP_858
+2022-11-30 09:30:06.365       ImageSeries: Quitat=2022-11-30 09:50:00.000.
+2022-11-30 09:30:06.365       Equipment.slew_scope() // completed at 2022-11-30 09:30:12.930.
+2022-11-30 09:30:12.930       Equipment.slew_dome_to_azimuth(107.186 degrees az)... 
+2022-11-30 09:30:12.930       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 09:31:08.812.
+2022-11-30 09:31:08.812       Start do_exposures(): 2 exposures requested in filter BB.
+2022-11-30 09:31:08.812       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 09:31:09.812.
+2022-11-30 09:31:09.812       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 09:31:29.812.
+2022-11-30 09:31:29.812       Start exposure 1 of 2, 720 seconds.
+2022-11-30 09:43:49.812       Afinterval.perform() AUTOFOCUS DONE // completed at 2022-11-30 09:46:49.812.
+2022-11-30 09:46:49.812       do_exposures(): Afinterval performed after 1 of 2 exposures.
+2022-11-30 09:46:49.812       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 09:46:55.812.
+2022-11-30 09:46:55.812       Start exposure 2 of 2, 720 seconds.
+2022-11-30 09:59:15.812       Equipment.stop_guider() // completed at 2022-11-30 09:59:16.812.
+2022-11-30 09:59:16.812       do_exposures(): 2 of 2 exposures requested were actually completed.
+2022-11-30 09:59:16.812       ImageSeries // fully completed at 2022-11-30 09:59:16.812.
+2022-11-30 09:59:16.812    QUITAT detected.
+2022-11-30 09:59:16.812    Set 1 exits on QUITAT.
+2022-11-30 09:59:21.812 Chaining set up to plan_20221129_d.txt
+2022-11-30 09:59:21.812 Exiting PLAN 20221129_C
+
+
+*********************************************************
+2022-11-30 09:59:21.812 Starting PLAN 20221129_D, sets=1
+2022-11-30 09:59:21.812 afinterval=120
+2022-11-30 09:59:21.812 QUITAT=2022-11-30 12:45:00.000
+2022-11-30 09:59:26.812 Starting Set 1
+2022-11-30 09:59:26.812    1, 0: Waituntil object: UTC = 09:50
+2022-11-30 09:59:26.812       Waituntil // completed at 2022-11-30 09:59:26.812.
+2022-11-30 09:59:26.812    1, 1: ImageSeries object: MP_858
+2022-11-30 09:59:26.812       ImageSeries: Quitat=2022-11-30 12:45:00.000.
+2022-11-30 09:59:26.812       Equipment.slew_scope() // completed at 2022-11-30 09:59:30.812.
+2022-11-30 09:59:30.812       Equipment.slew_dome_to_azimuth(122.943 degrees az)... 
+2022-11-30 09:59:30.812       Equipment.slew_dome_to_skycoord // completed at 2022-11-30 09:59:41.064.
+2022-11-30 09:59:41.064       Start do_exposures(): 100 exposures requested in filter BB.
+2022-11-30 09:59:41.064       Equipment.use_filter(BB) (no change) // completed at 2022-11-30 09:59:42.064.
+2022-11-30 09:59:42.064       Afinterval.perform() AUTOFOCUS DONE // completed at 2022-11-30 10:02:42.064.
+2022-11-30 10:02:42.064       do_exposures(): Afinterval performed after 0 of 100 exposures.
+2022-11-30 10:02:42.064       Equipment.start_or_resume_guider() START GUIDER // completed at 2022-11-30 10:03:02.064.
+2022-11-30 10:03:02.064       Start exposure 1 of 100, 720 seconds.
+2022-11-30 10:15:22.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 10:15:28.064.
+2022-11-30 10:15:28.064       Start exposure 2 of 100, 720 seconds.
+2022-11-30 10:27:48.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 10:27:54.064.
+2022-11-30 10:27:54.064       Start exposure 3 of 100, 720 seconds.
+2022-11-30 10:40:14.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 10:40:20.064.
+2022-11-30 10:40:20.064       Start exposure 4 of 100, 720 seconds.
+2022-11-30 10:52:40.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 10:52:46.064.
+2022-11-30 10:52:46.064       Start exposure 5 of 100, 720 seconds.
+2022-11-30 11:05:06.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 11:05:12.064.
+2022-11-30 11:05:12.064       Start exposure 6 of 100, 720 seconds.
+2022-11-30 11:17:32.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 11:17:38.064.
+2022-11-30 11:17:38.064       Start exposure 7 of 100, 720 seconds.
+2022-11-30 11:29:58.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 11:30:04.064.
+2022-11-30 11:30:04.064       Start exposure 8 of 100, 720 seconds.
+2022-11-30 11:42:24.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 11:42:30.064.
+2022-11-30 11:42:30.064       Start exposure 9 of 100, 720 seconds.
+2022-11-30 11:54:50.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 11:54:56.064.
+2022-11-30 11:54:56.064       Start exposure 10 of 100, 720 seconds.
+2022-11-30 12:07:16.064       Afinterval.perform() AUTOFOCUS DONE // completed at 2022-11-30 12:10:16.064.
+2022-11-30 12:10:16.064       do_exposures(): Afinterval performed after 10 of 100 exposures.
+2022-11-30 12:10:16.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 12:10:22.064.
+2022-11-30 12:10:22.064       Start exposure 11 of 100, 720 seconds.
+2022-11-30 12:22:42.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 12:22:48.064.
+2022-11-30 12:22:48.064       Start exposure 12 of 100, 720 seconds.
+2022-11-30 12:35:08.064       Equipment.start_or_resume_guider() RESUME // completed at 2022-11-30 12:35:14.064.
+2022-11-30 12:35:14.064       Start exposure 13 of 100, 720 seconds.
+2022-11-30 12:47:34.064       Equipment.stop_guider() // completed at 2022-11-30 12:47:35.064.
+2022-11-30 12:47:35.064       do_exposures(): 13 of 100 exposures requested were actually completed.
+2022-11-30 12:47:35.064       ImageSeries // partially completed at 2022-11-30 12:47:35.064.
+2022-11-30 12:47:35.064    QUITAT detected.
+2022-11-30 12:47:35.064    Set 1 exits on QUITAT.
+2022-11-30 12:47:40.064 Chaining set up to plan_20221129_z.txt
+2022-11-30 12:47:40.064 Exiting PLAN 20221129_D
+
+
+*********************************************************
+2022-11-30 12:47:40.064 Starting PLAN 20221129_Z, sets=1
+2022-11-30 12:47:40.064 (No AFINTERVAL for this plan)
+2022-11-30 12:47:40.064 (No QUITAT for this plan)
+2022-11-30 12:47:45.064 Starting Set 1
+2022-11-30 12:47:45.064    1, 0: Domeclose object
+2022-11-30 12:47:45.064       Equipment.close_dome() // completed at 2022-11-30 12:49:45.064.
+2022-11-30 12:47:45.064       Domeclose // completed at 2022-11-30 12:49:45.064.
+2022-11-30 12:49:45.064    1, 1: Shutdown object
+2022-11-30 12:49:45.064       Equipment.slew_scope() // completed at 2022-11-30 12:49:53.738.
+2022-11-30 12:49:45.064       Equipment.park_scope() // completed at 2022-11-30 12:49:53.738.
+2022-11-30 12:49:53.738       Equipment.change_camera_temp(-35.0->6.0) // completed at 2022-11-30 12:52:21.338.
+2022-11-30 12:49:45.064       Shutdown // completed at 2022-11-30 12:52:21.338.
+2022-11-30 12:52:21.338    Set 1 exits on completion.
+2022-11-30 12:52:21.338 No chaining was set up.
+2022-11-30 12:52:21.338 Exiting PLAN 20221129_Z

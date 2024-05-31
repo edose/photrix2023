@@ -1712,8 +1712,12 @@ def write_acp_plan_files(plans_top_directory: str, plan_list: List[Plan],
             lines.append('; (No rotator.)')
         lines.append(';')
         if this_plan.quitat_object is not None:
-            time_str = this_plan.quitat_object.quitat_time.strftime("%m/%d/%Y %H:%M")
-            lines.append(f'#QUITAT {time_str} ; utc')
+            if this_plan.quitat_object.parm_type == 'UTC':
+                time_str = this_plan.quitat_object.quitat_time.strftime(
+                    "%m/%d/%Y %H:%M")
+                lines.append(f'#QUITAT {time_str} ; utc')
+            else:
+                lines.append(f'#QUITAT {this_plan.quitat_object.parm} ; deg sun alt')
         if this_plan.afinterval_object is not None:
             lines.append(f'#AFINTERVAL {this_plan.afinterval_object.minutes}')
         if this_plan.sets_object is not None:
@@ -2061,6 +2065,11 @@ def make_warning_and_error_lines(plan_dict: OrderedDict, an: Astronight,
                                                      an.site.latitude * u.degree,
                                                      an.site.elevation * u.m)
         # TODO, later: Wrap next stmt in try block, & on exception write '--' instead.
+        if first_imaging_adsi.time is None:
+            print(' >>>>> WARNING: first imaging time cannot be calculated '
+                  '(check WAITUNTIL and QUITAT times).')
+        # print(f'>>>{first_imaging_adsi.adir.skycoord}\n'
+        #       f'{first_imaging_adsi.time}\n{site_earth_loc}<<<\n')
         az_degree = first_imaging_adsi.adir.skycoord.transform_to(
             AltAz(obstime=first_imaging_adsi.time, location=site_earth_loc)).az.degree
         first_imaging_adsi.warning_error_lines.append(

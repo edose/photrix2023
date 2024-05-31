@@ -219,9 +219,10 @@ def make_lc_an_roster(an_date: str | int,
             this_file.write('\n\n' + '\n'.join(too_late_lines))
 
     # Display plots; also write to PNG files:
-    use_for_plots = df['TimeObservableOK'].to_list()
-    df_for_plots = df.loc[use_for_plots, :]
-    # TODO: restore call to make_coverage_plots() when the above all tests well.
+    # Limit plots to those with minimum observable duration.
+        # use_for_plots = df['TimeObservableOK'].to_list()
+        # df_for_plots = df.loc[use_for_plots, :]
+    df_for_plots = df  # (Do not limit plots to longer observable durations.)
     _make_coverage_plots(an, df_for_plots)
 
     print()
